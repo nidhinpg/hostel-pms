@@ -27,18 +27,23 @@ export default function BedMap() {
 
   const getTenant = bedId => tenants.find(t => t.bed_id === bedId)
 
-  const handleVacate = async () => {
-    await supabase.from('beds').update({ status: 'vacant' }).eq('id', selected.id)
-    const t = getTenant(selected.id)
-    if (t) await supabase.from('tenants').update({ status: 'vacated' }).eq('id', t.id)
-    showToast('Bed vacated')
+  const handleSetStatus = async (status) => {
+    await supabase.from('beds').update({ status }).eq('id', selected.id)
+    if (status === 'vacant') {
+      const t = getTenant(selected.id)
+      if (t) await supabase.from('tenants').update({ status: 'vacated' }).eq('id', t.id)
+    }
+    showToast(`Bed marked as ${status}`)
     setSelected(null)
     load()
   }
 
-  const handleMaintenance = async () => {
-    await supabase.from('beds').update({ status: 'maintenance' }).eq('id', selected.id)
-    showToast('Marked as maintenance')
+  const handleDeleteBed = async () => {
+    const t = getTenant(selected.id)
+    if (t) { showToast('Cannot delete — bed has active tenant'); return }
+    if (!window.confirm(`Delete bed ${selected.id}? This cannot be undone.`)) return
+    await supabase.from('beds').delete().eq('id', selected.id)
+    showToast('Bed deleted')
     setSelected(null)
     load()
   }
@@ -87,53 +92,55 @@ export default function BedMap() {
         })}
       </div>
 
-      {selected && (
-        <Modal title={`Bed ${selected.id}`} onClose={() => setSelected(null)}
-          footer={
-            <>
-              <button className="btn" onClick={() => setSelected(null)}>Close</button>
-              {selected.status !== 'maintenance' && (
-                <button className="btn" onClick={handleMaintenance}>Mark maintenance</button>
-              )}
-              {selected.status === 'occupied' && (
-                <button className="btn btn-danger" onClick={handleVacate}>Vacate bed</button>
-              )}
-            </>
-          }>
-          {(() => {
-            const t = getTenant(selected.id)
-            return (
-              <div style={{ fontSize: 13 }}>
-                <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Status</span>
-                  <span className={`badge ${selected.status === 'occupied' ? 'badge-green' : selected.status === 'maintenance' ? 'badge-amber' : 'badge-blue'}`}>
-                    {selected.status}
-                  </span>
-                </div>
-                {t ? (
-                  <>
-                    <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span>{t.name}</span>
-                    </div>
-                    <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Phone</span><span>{t.phone}</span>
-                    </div>
-                    <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Move-in</span><span>{t.movein_date}</span>
-                    </div>
-                    <div className="row-between" style={{ padding: '8px 0' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Rent</span>
-                      <span style={{ fontWeight: 600 }}>₹{Number(t.rent).toLocaleString('en-IN')}/mo</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="empty" style={{ padding: '20px 0' }}>No tenant assigned</div>
+      {selected && (() => {
+        const t = getTenant(selected.id)
+        return (
+          <Modal title={`Bed ${selected.id}`} onClose={() => setSelected(null)}
+            footer={
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>
+                {selected.status !== 'vacant' && (
+                  <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>
                 )}
+                {selected.status !== 'maintenance' && (
+                  <button className="btn" onClick={() => handleSetStatus('maintenance')}>Mark maintenance</button>
+                )}
+                {selected.status === 'maintenance' && (
+                  <button className="btn btn-primary" onClick={() => handleSetStatus('vacant')}>Back to vacant</button>
+                )}
+                <button className="btn" onClick={() => setSelected(null)}>Close</button>
               </div>
-            )
-          })()}
-        </Modal>
-      )}
+            }>
+            <div style={{ fontSize: 13 }}>
+              <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Status</span>
+                <span className={`badge ${selected.status === 'occupied' ? 'badge-green' : selected.status === 'maintenance' ? 'badge-amber' : 'badge-blue'}`}>
+                  {selected.status}
+                </span>
+              </div>
+              {t ? (
+                <>
+                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span>{t.name}</span>
+                  </div>
+                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Phone</span><span>{t.phone}</span>
+                  </div>
+                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Move-in</span><span>{t.movein_date}</span>
+                  </div>
+                  <div className="row-between" style={{ padding: '8px 0' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Rent</span>
+                    <span style={{ fontWeight: 600 }}>₹{Number(t.rent).toLocaleString('en-IN')}/mo</span>
+                  </div>
+                </>
+              ) : (
+                <div className="empty" style={{ padding: '20px 0' }}>No tenant assigned</div>
+              )}
+            </div>
+          </Modal>
+        )
+      })()}
 
       {showAdd && (
         <Modal title="Add new bed" onClose={() => setShowAdd(false)}
