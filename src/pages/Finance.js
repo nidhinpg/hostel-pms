@@ -17,6 +17,7 @@ export default function Finance() {
   })
 
   const load = useCallback(async () => {
+    setLoading(true)
     const { data } = await supabase
       .from('transactions')
       .select('*')
@@ -41,6 +42,14 @@ export default function Finance() {
     showToast('Entry saved!')
     setShowAdd(false)
     setForm({ date: new Date().toISOString().slice(0, 10), type: 'income', category: 'Rent', description: '', amount: '' })
+    load()
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this transaction?')) return
+    const { error } = await supabase.from('transactions').delete().eq('id', id)
+    if (error) { showToast('Error deleting'); return }
+    showToast('Transaction deleted')
     load()
   }
 
@@ -84,7 +93,7 @@ export default function Finance() {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount</th></tr>
+                <tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount</th><th></th></tr>
               </thead>
               <tbody>
                 {transactions.map(t => (
@@ -95,6 +104,13 @@ export default function Finance() {
                     <td style={{ color: 'var(--text-secondary)' }}>{t.description}</td>
                     <td className={t.type === 'income' ? 'amt-income' : 'amt-expense'}>
                       {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
+                    </td>
+                    <td>
+                      <button onClick={() => handleDelete(t.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '0 6px', lineHeight: 1 }}
+                        title="Delete"
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}>×</button>
                     </td>
                   </tr>
                 ))}
