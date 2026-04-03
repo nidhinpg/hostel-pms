@@ -3,6 +3,14 @@ import { supabase } from '../lib/supabase'
 
 const fmt = n => '₹' + Number(n).toLocaleString('en-IN')
 
+function getMonthRange(month) {
+  const [year, mon] = month.split('-').map(Number)
+  const start = `${month}-01`
+  const lastDay = new Date(year, mon, 0).getDate()
+  const end = `${month}-${String(lastDay).padStart(2, '0')}`
+  return { start, end }
+}
+
 export default function Reports() {
   const [data, setData] = useState(null)
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
@@ -10,8 +18,10 @@ export default function Reports() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    const { start, end } = getMonthRange(month)
+
     const [txRes, bedsRes, tenantsRes] = await Promise.all([
-      supabase.from('transactions').select('*').gte('date', month + '-01').lte('date', month + '-31'),
+      supabase.from('transactions').select('*').gte('date', start).lte('date', end),
       supabase.from('beds').select('status'),
       supabase.from('tenants').select('rent').eq('status', 'active'),
     ])
@@ -31,7 +41,12 @@ export default function Reports() {
       catMap[t.category] = (catMap[t.category] || 0) + t.amount
     })
 
-    setData({ income, expense, net: income - expense, occupied, totalBeds, potentialRent, catMap })
+    const incCatMap = {}
+    tx.filter(t => t.type === 'income').forEach(t => {
+      incCatMap[t.category] = (incCatMap[t.category] || 0) + t.amount
+    })
+
+    setData({ income, expense, net: income - expense, occupied, totalBeds, potentialRent, catMap, incCatMap, txCount: tx.length })
     setLoading(false)
   }, [month])
 
@@ -54,6 +69,12 @@ export default function Reports() {
 
       {loading || !data ? <div className="loading">Loading report...</div> : (
         <>
+          {data.txCount === 0 && (
+            <div style={{ background: 'var(--amber-bg)', color: 'var(--amber)', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+              No transactions found for {month}. Add entries in Income & expenses tab first.
+            </div>
+          )}
+
           <div className="metrics">
             <div className="metric">
               <div className="metric-label">Total income</div>
@@ -92,31 +113,45 @@ export default function Reports() {
             </div>
           </div>
 
-          <div className="card">
-            <div className="card-title">Expense breakdown</div>
-            {Object.keys(data.catMap).length === 0 ? (
-              <div className="empty">No expenses this month</div>
-            ) : (
-              <div className="table-wrap">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div className="card">
+              <div className="card-title">Income breakdown</div>
+              {Object.keys(data.incCatMap).length === 0 ? (
+                <div className="empty">No income this month</div>
+              ) : (
                 <table>
-                  <thead><tr><th>Category</th><th>Amount</th><th>% of expenses</th><th>Bar</th></tr></thead>
+                  <thead><tr><th>Category</th><th>Amount</th></tr></thead>
                   <tbody>
-                    {Object.entries(data.catMap).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
+                    {Object.entries(data.incCatMap).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
                       <tr key={cat}>
                         <td>{cat}</td>
-                        <td style={{ fontWeight: 600 }}>{fmt(amt)}</td>
-                        <td>{data.expense ? Math.round(amt / data.expense * 100) : 0}%</td>
-                        <td style={{ width: 100 }}>
-                          <div className="progress-bar">
-                            <div className="progress-fill" style={{ width: data.expense ? (amt / data.expense * 100) + '%' : '0%', background: 'var(--red)' }} />
-                          </div>
-                        </td>
+                        <td className="amt-income">{fmt(amt)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+              )}
+            </div>
+
+            <div className="card">
+              <div className="card-title">Expense breakdown</div>
+              {Object.keys(data.catMap).length === 0 ? (
+                <div className="empty">No expenses this month</div>
+              ) : (
+                <table>
+                  <thead><tr><th>Category</th><th>Amount</th><th>%</th></tr></thead>
+                  <tbody>
+                    {Object.entries(data.catMap).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
+                      <tr key={cat}>
+                        <td>{cat}</td>
+                        <td className="amt-expense">{fmt(amt)}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{data.expense ? Math.round(amt / data.expense * 100) : 0}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </>
       )}
