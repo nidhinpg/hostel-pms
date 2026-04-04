@@ -13,7 +13,11 @@ function getMonthRange(month) {
 
 export default function Reports() {
   const [data, setData] = useState(null)
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  const currentMonth = () => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }
+  const [month, setMonth] = useState(currentMonth)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -56,10 +60,9 @@ export default function Reports() {
 
   const months = []
   for (let i = 0; i < 12; i++) {
-    const d = new Date()
-    d.setDate(1)
-    d.setMonth(d.getMonth() - i)
-    months.push(d.toISOString().slice(0, 7))
+    const now = new Date()
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push(date.toISOString().slice(0, 7))
   }
 
   return (
