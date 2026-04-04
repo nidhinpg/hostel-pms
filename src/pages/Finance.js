@@ -18,7 +18,11 @@ export default function Finance() {
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [toast, setToast] = useState('')
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  const currentMonth = () => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }
+  const [month, setMonth] = useState(currentMonth)
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     type: 'income', category: 'Rent', description: '', amount: ''
@@ -74,9 +78,10 @@ export default function Finance() {
   const months = []
   for (let i = 0; i < 12; i++) {
     const d = new Date()
-    d.setDate(1)
-    d.setMonth(d.getMonth() - i)
-    months.push(d.toISOString().slice(0, 7))
+    const y = d.getFullYear()
+    const m = d.getMonth() - i
+    const date = new Date(y, m, 1)
+    months.push(date.toISOString().slice(0, 7))
   }
 
   return (
