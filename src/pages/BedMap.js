@@ -2,6 +2,22 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
 
+// Define floor and room structure
+const STRUCTURE = [
+  {
+    floor: 'Floor 1',
+    rooms: ['101', '102', '103', '104']
+  },
+  {
+    floor: 'Floor 2',
+    rooms: ['201', '202', '203', '204', '205']
+  },
+  {
+    floor: 'Floor 3',
+    rooms: ['301', '302', '303', '304']
+  }
+]
+
 export default function BedMap() {
   const [beds, setBeds] = useState([])
   const [tenants, setTenants] = useState([])
@@ -24,8 +40,16 @@ export default function BedMap() {
   useEffect(() => { load() }, [load])
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 2500) }
-
   const getTenant = bedId => tenants.find(t => t.bed_id === bedId)
+
+  // Group beds by room number prefix
+  const bedsByRoom = beds.reduce((acc, bed) => {
+    // Extract room number: '101A' -> '101', '303G' -> '303'
+    const room = bed.id.replace(/[A-Z]+$/, '')
+    if (!acc[room]) acc[room] = []
+    acc[room].push(bed)
+    return acc
+  }, {})
 
   const handleSetStatus = async (status) => {
     await supabase.from('beds').update({ status }).eq('id', selected.id)
@@ -41,7 +65,7 @@ export default function BedMap() {
   const handleDeleteBed = async () => {
     const t = getTenant(selected.id)
     if (t) { showToast('Cannot delete — bed has active tenant'); return }
-    if (!window.confirm(`Delete bed ${selected.id}? This cannot be undone.`)) return
+    if (!window.confirm(`Delete bed ${selected.id}?`)) return
     await supabase.from('beds').delete().eq('id', selected.id)
     showToast('Bed deleted')
     setSelected(null)
@@ -77,21 +101,114 @@ export default function BedMap() {
         <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--amber)' }} />{maintenance} Maintenance</div>
       </div>
 
-      <div className="bed-grid">
-        {beds.map(bed => {
-          const t = getTenant(bed.id)
-          return (
-            <div key={bed.id} className={`bed-card ${bed.status}`} onClick={() => setSelected(bed)}>
-              <span className="bed-num">{bed.id}</span>
-              <span className="bed-name">
-                {bed.status === 'occupied' && t ? t.name.split(' ')[0] :
-                  bed.status === 'maintenance' ? 'Maint.' : 'Free'}
-              </span>
-            </div>
-          )
-        })}
-      </div>
+      {STRUCTURE.map(({ floor, rooms }) => {
+        const floorBeds = rooms.flatMap(r => bedsByRoom[r] || [])
+        const floorOcc = floorBeds.filter(b => b.status === 'occupied').length
+        const floorTotal = floorBeds.length
 
+        return (
+          <div key={floor} style={{ marginBottom: 28 }}>
+            {/* Floor header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: 'var(--text)', color: 'white',
+              padding: '10px 16px', borderRadius: 'var(--radius)',
+              marginBottom: 12
+            }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{floor}</span>
+              <span style={{ fontSize: 12, opacity: 0.8 }}>{floorOcc}/{floorTotal} occupied</span>
+            </div>
+
+            {/* Rooms in this floor */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {rooms.map(roomNum => {
+                const roomBeds = bedsByRoom[roomNum] || []
+                if (roomBeds.length === 0) return null
+                const roomOcc = roomBeds.filter(b => b.status === 'occupied').length
+
+                return (
+                  <div key={roomNum} style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Room header */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 14px',
+                      background: 'var(--bg)',
+                      borderBottom: '1px solid var(--border)'
+                    }}>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>Room {roomNum}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          {roomBeds.length} bed{roomBeds.length > 1 ? 's' : ''}
+                        </span>
+                        <span className={`badge ${roomOcc === roomBeds.length ? 'badge-red' : roomOcc === 0 ? 'badge-blue' : 'badge-amber'}`}
+                          style={{ fontSize: 10 }}>
+                          {roomOcc === roomBeds.length ? 'Full' : roomOcc === 0 ? 'Empty' : `${roomBeds.length - roomOcc} free`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Beds in this room */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: 12 }}>
+                      {roomBeds.map(bed => {
+                        const t = getTenant(bed.id)
+                        return (
+                          <div key={bed.id}
+                            className={`bed-card ${bed.status}`}
+                            onClick={() => setSelected(bed)}
+                            style={{ minWidth: 72, flex: '0 0 auto' }}>
+                            <span className="bed-num">{bed.id}</span>
+                            <span className="bed-name">
+                              {bed.status === 'occupied' && t ? t.name.split(' ')[0] :
+                                bed.status === 'maintenance' ? 'Maint.' : 'Free'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Ungrouped beds (don't match any room in STRUCTURE) */}
+      {(() => {
+        const knownRooms = STRUCTURE.flatMap(f => f.rooms)
+        const ungrouped = beds.filter(b => {
+          const room = b.id.replace(/[A-Z]+$/, '')
+          return !knownRooms.includes(room)
+        })
+        if (ungrouped.length === 0) return null
+        return (
+          <div style={{ marginBottom: 28 }}>
+            <div style={{
+              background: 'var(--text-secondary)', color: 'white',
+              padding: '10px 16px', borderRadius: 'var(--radius)', marginBottom: 12,
+              fontSize: 14, fontWeight: 600
+            }}>Other beds</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {ungrouped.map(bed => {
+                const t = getTenant(bed.id)
+                return (
+                  <div key={bed.id} className={`bed-card ${bed.status}`} onClick={() => setSelected(bed)} style={{ minWidth: 72 }}>
+                    <span className="bed-num">{bed.id}</span>
+                    <span className="bed-name">{bed.status === 'occupied' && t ? t.name.split(' ')[0] : bed.status === 'maintenance' ? 'Maint.' : 'Free'}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Bed info modal */}
       {selected && (() => {
         const t = getTenant(selected.id)
         return (
@@ -121,7 +238,7 @@ export default function BedMap() {
               {t ? (
                 <>
                   <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span>{t.name}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span style={{ fontWeight: 500 }}>{t.name}</span>
                   </div>
                   <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Phone</span><span>{t.phone}</span>
@@ -142,6 +259,7 @@ export default function BedMap() {
         )
       })()}
 
+      {/* Add bed modal */}
       {showAdd && (
         <Modal title="Add new bed" onClose={() => setShowAdd(false)}
           footer={
@@ -153,7 +271,7 @@ export default function BedMap() {
           <div className="form-grid">
             <div className="form-group">
               <label>Bed ID</label>
-              <input placeholder="e.g. D1" value={newBed.id} onChange={e => setNewBed(p => ({ ...p, id: e.target.value }))} />
+              <input placeholder="e.g. 101E" value={newBed.id} onChange={e => setNewBed(p => ({ ...p, id: e.target.value }))} />
             </div>
             <div className="form-group">
               <label>Initial status</label>
