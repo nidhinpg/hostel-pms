@@ -77,11 +77,10 @@ export default function Finance() {
 
   const months = []
   for (let i = 0; i < 12; i++) {
-    const d = new Date()
-    const y = d.getFullYear()
-    const m = d.getMonth() - i
-    const date = new Date(y, m, 1)
-    months.push(date.toISOString().slice(0, 7))
+    const now = new Date()
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    months.push(`${date.getFullYear()}-${mm}`)
   }
 
   return (
