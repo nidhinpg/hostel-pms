@@ -62,7 +62,8 @@ export default function Reports() {
   for (let i = 0; i < 12; i++) {
     const now = new Date()
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    months.push(date.toISOString().slice(0, 7))
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    months.push(`${date.getFullYear()}-${mm}`)
   }
 
   return (
