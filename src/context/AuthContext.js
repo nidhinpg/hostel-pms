@@ -32,19 +32,28 @@ export function AuthProvider({ children }) {
   }, [])
 
   const loadUserData = async (user) => {
-    const [profileRes, propsRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('properties').select('*').eq('owner_id', user.id).order('created_at'),
-    ])
+    const { data: profileData } = await supabase
+      .from('profiles').select('*').eq('id', user.id).single()
 
-    setProfile(profileRes.data)
-    const props = propsRes.data || []
-    setProperties(props)
+    setProfile(profileData)
 
-    // Restore last selected property from localStorage
-    const savedId = localStorage.getItem('activePropertyId')
-    const saved = props.find(p => p.id === savedId)
-    setActiveProperty(saved || props[0] || null)
+    // Staff: load their assigned property directly
+    if (profileData?.role === 'staff' && profileData?.property_id) {
+      const { data: prop } = await supabase
+        .from('properties').select('*').eq('id', profileData.property_id).single()
+      setProperties(prop ? [prop] : [])
+      setActiveProperty(prop || null)
+    } else {
+      // Owner/admin: load all their properties
+      const { data: props } = await supabase
+        .from('properties').select('*').eq('owner_id', user.id).order('created_at')
+      const propList = props || []
+      setProperties(propList)
+      const savedId = localStorage.getItem('activePropertyId')
+      const saved = propList.find(p => p.id === savedId)
+      setActiveProperty(saved || propList[0] || null)
+    }
+
     setLoading(false)
   }
 
@@ -68,6 +77,8 @@ export function AuthProvider({ children }) {
       user, profile, properties, activeProperty,
       loading, signIn, signOut, selectProperty,
       isAdmin: profile?.is_admin === true,
+      isStaff: profile?.role === 'staff',
+      isOwner: profile?.role === 'owner' || profile?.is_admin === true,
       refreshProperties: () => user && loadUserData(user)
     }}>
       {children}
