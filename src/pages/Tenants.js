@@ -13,7 +13,7 @@ function currentDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-export default function Tenants({ propertyId }) {
+export default function Tenants({ propertyId, isStaff = false }) {
   const [tenants, setTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
   const [rentPayments, setRentPayments] = useState([])
@@ -127,7 +127,7 @@ export default function Tenants({ propertyId }) {
     <div>
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
+        {!isStaff && <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>}
       </div>
 
       <div className="metrics" style={{ marginBottom: 20 }}>
