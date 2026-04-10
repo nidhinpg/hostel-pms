@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import BedMap from './pages/BedMap'
@@ -7,18 +8,11 @@ import Tenants from './pages/Tenants'
 import Finance from './pages/Finance'
 import Reports from './pages/Reports'
 import AdminPanel from './pages/AdminPanel'
+import StaffManager from './pages/StaffManager'
 import './App.css'
 
-const PAGES = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'beds', label: 'Bed map' },
-  { id: 'tenants', label: 'Tenants' },
-  { id: 'finance', label: 'Income & expenses' },
-  { id: 'reports', label: 'Reports' },
-]
-
 function AppContent() {
-  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin } = useAuth()
+  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner } = useAuth()
   const [page, setPage] = useState('dashboard')
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -44,9 +38,19 @@ function AppContent() {
     </div>
   )
 
-  const navPages = isAdmin
-    ? [...PAGES, { id: 'admin', label: 'Admin' }]
-    : PAGES
+  const userRole = isAdmin ? 'admin' : isStaff ? 'staff' : 'owner'
+
+  const ALL_PAGES = [
+    { id: 'dashboard', label: 'Dashboard', roles: ['owner', 'staff', 'admin'] },
+    { id: 'beds', label: 'Bed map', roles: ['owner', 'staff', 'admin'] },
+    { id: 'tenants', label: 'Tenants', roles: ['owner', 'staff', 'admin'] },
+    { id: 'finance', label: 'Income & expenses', roles: ['owner', 'staff', 'admin'] },
+    { id: 'reports', label: 'Reports', roles: ['owner', 'admin'] },
+    { id: 'staff', label: 'Staff', roles: ['owner', 'admin'] },
+    { id: 'admin', label: 'Admin', roles: ['admin'] },
+  ]
+
+  const navPages = ALL_PAGES.filter(p => p.roles.includes(userRole))
 
   return (
     <div className="app">
@@ -58,17 +62,16 @@ function AppContent() {
               <span className="logo-text">Hosteloops PMS</span>
             </div>
 
-            {/* Property switcher */}
-            {properties.length > 0 && (
+            {/* Property switcher — owners with multiple properties */}
+            {isOwner && properties.length > 1 && (
               <div style={{ position: 'relative' }}>
                 <button
                   onClick={() => { setShowPropertyMenu(!showPropertyMenu); setShowUserMenu(false) }}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '4px 10px', fontSize: 13, fontWeight: 500,
-                    background: 'var(--bg)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                    color: 'var(--text)', fontFamily: 'inherit'
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                    fontSize: 13, fontWeight: 500, background: 'var(--bg)',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit'
                   }}>
                   {activeProperty?.name || 'Select property'}
                   <span style={{ fontSize: 10, opacity: 0.6 }}>▼</span>
@@ -99,12 +102,21 @@ function AppContent() {
                 )}
               </div>
             )}
+
+            {/* Staff sees property name as badge */}
+            {isStaff && activeProperty && (
+              <div style={{
+                padding: '4px 10px', background: 'var(--blue-bg)', color: 'var(--blue)',
+                borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 500
+              }}>
+                {activeProperty.name}
+              </div>
+            )}
           </div>
 
           <nav className="nav">
             {navPages.map(p => (
-              <button
-                key={p.id}
+              <button key={p.id}
                 className={`nav-btn ${page === p.id ? 'active' : ''}`}
                 onClick={() => { setPage(p.id); setShowPropertyMenu(false); setShowUserMenu(false) }}>
                 {p.label}
@@ -112,14 +124,15 @@ function AppContent() {
             ))}
           </nav>
 
-          {/* User menu */}
+          {/* User avatar menu */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={() => { setShowUserMenu(!showUserMenu); setShowPropertyMenu(false) }}
               style={{
                 width: 32, height: 32, borderRadius: '50%',
-                background: 'var(--text)', color: 'white',
-                border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                background: isStaff ? 'var(--blue)' : 'var(--text)',
+                color: 'white', border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600,
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
               {(profile?.full_name || user?.email || 'U')[0].toUpperCase()}
@@ -134,7 +147,11 @@ function AppContent() {
                 <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{profile?.full_name}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user?.email}</div>
-                  {isAdmin && <span className="badge badge-blue" style={{ marginTop: 4 }}>Admin</span>}
+                  <div style={{ marginTop: 6 }}>
+                    {isAdmin && <span className="badge badge-blue">Admin</span>}
+                    {isStaff && <span className="badge badge-green">Staff</span>}
+                    {isOwner && !isAdmin && <span className="badge badge-amber">Owner</span>}
+                  </div>
                 </div>
                 <div
                   onClick={() => { signOut(); setShowUserMenu(false) }}
@@ -150,18 +167,18 @@ function AppContent() {
       </header>
 
       <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }}>
-        {page === 'admin' && isAdmin ? (
-          <AdminPanel />
-        ) : !activeProperty ? (
-          <div className="empty" style={{ marginTop: 60 }}>Select a property to continue</div>
-        ) : (
-          <>
-            {page === 'dashboard' && <Dashboard onNavigate={setPage} propertyId={activeProperty.id} />}
-            {page === 'beds' && <BedMap propertyId={activeProperty.id} />}
-            {page === 'tenants' && <Tenants propertyId={activeProperty.id} />}
-            {page === 'finance' && <Finance propertyId={activeProperty.id} />}
-            {page === 'reports' && <Reports propertyId={activeProperty.id} />}
-          </>
+        {page === 'admin' && isAdmin && <AdminPanel />}
+        {page === 'staff' && isOwner && <StaffManager propertyId={activeProperty?.id} />}
+        {!['admin', 'staff'].includes(page) && (
+          !activeProperty
+            ? <div className="empty" style={{ marginTop: 60 }}>Select a property to continue</div>
+            : <>
+                {page === 'dashboard' && <Dashboard onNavigate={setPage} propertyId={activeProperty.id} />}
+                {page === 'beds' && <BedMap propertyId={activeProperty.id} isStaff={isStaff} />}
+                {page === 'tenants' && <Tenants propertyId={activeProperty.id} isStaff={isStaff} />}
+                {page === 'finance' && <Finance propertyId={activeProperty.id} isStaff={isStaff} />}
+                {page === 'reports' && !isStaff && <Reports propertyId={activeProperty.id} />}
+              </>
         )}
       </main>
     </div>
