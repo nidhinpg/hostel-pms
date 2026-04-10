@@ -26,7 +26,7 @@ export default function Login() {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🏠</div>
           <h1 style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-            Hostel PMS
+            Hosteloops PMS
           </h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             Sign in to manage your property
