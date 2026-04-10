@@ -56,6 +56,17 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const isPaid = id => rentPayments.some(r => r.tenant_id === id)
   const getPayment = id => rentPayments.find(r => r.tenant_id === id)
 
+  // Rent is due only after the tenant's movein day has passed this month
+  const getRentStatus = (tenant) => {
+    if (isPaid(tenant.id)) return 'paid'
+    const today = new Date()
+    const todayDay = today.getDate()
+    const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
+    if (todayDay >= joinDay) return 'due'
+    return 'upcoming'
+  }
+  const isDue = (tenant) => getRentStatus(tenant) === 'due'
+
   const openCollect = (tenant) => {
     setSelectedTenant(tenant)
     setCollectAmount(String(tenant.rent))
@@ -145,12 +156,14 @@ export default function Tenants({ propertyId, isStaff = false }) {
   if (loading) return <div className="loading">Loading tenants...</div>
 
   const paidThisMonth = tenants.filter(t => isPaid(t.id)).length
-  const unpaidCount = tenants.length - paidThisMonth
-  const totalRentDue = tenants.filter(t => !isPaid(t.id)).reduce((a, t) => a + t.rent, 0)
+  const unpaidCount = tenants.filter(t => getRentStatus(t) === 'due').length
+  const upcomingCount = tenants.filter(t => getRentStatus(t) === 'upcoming').length
+  const totalRentDue = tenants.filter(t => getRentStatus(t) === 'due').reduce((a, t) => a + t.rent, 0)
 
   const filteredTenants = tenants.filter(t => {
-    if (filterStatus === 'paid') return isPaid(t.id)
-    if (filterStatus === 'due') return !isPaid(t.id)
+    if (filterStatus === 'paid') return getRentStatus(t) === 'paid'
+    if (filterStatus === 'due') return getRentStatus(t) === 'due'
+    if (filterStatus === 'upcoming') return getRentStatus(t) === 'upcoming'
     return true
   })
 
@@ -185,18 +198,26 @@ export default function Tenants({ propertyId, isStaff = false }) {
           <div className="metrics" style={{ marginBottom: 20 }}>
             <div className="metric"><div className="metric-label">Total tenants</div><div className="metric-value">{tenants.length}</div><div className="metric-sub">{vacantBeds.length} beds vacant</div></div>
             <div className="metric"><div className="metric-label">Paid this month</div><div className="metric-value" style={{ color: 'var(--green)' }}>{paidThisMonth}</div><div className="metric-sub">{month}</div></div>
-            <div className="metric"><div className="metric-label">Not paid</div><div className="metric-value" style={{ color: unpaidCount > 0 ? 'var(--red)' : 'var(--green)' }}>{unpaidCount}</div><div className="metric-sub">tenants</div></div>
+            <div className="metric"><div className="metric-label">Rent due</div><div className="metric-value" style={{ color: unpaidCount > 0 ? 'var(--red)' : 'var(--green)' }}>{unpaidCount}</div><div className="metric-sub">{upcomingCount} upcoming</div></div>
             <div className="metric"><div className="metric-label">Outstanding</div><div className="metric-value" style={{ color: totalRentDue > 0 ? 'var(--red)' : 'var(--green)', fontSize: 18 }}>{fmt(totalRentDue)}</div><div className="metric-sub">to collect</div></div>
           </div>
 
-          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-            {[['all', 'All'], ['due', 'Not paid'], ['paid', 'Paid']].map(([val, label]) => (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+            {[
+              ['all', 'All'],
+              ['due', 'Due'],
+              ['upcoming', 'Upcoming'],
+              ['paid', 'Paid']
+            ].map(([val, label]) => (
               <button key={val} onClick={() => setFilterStatus(val)}
                 className={`btn ${filterStatus === val ? 'btn-primary' : ''}`}
                 style={{ fontSize: 12, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
                 {label}
                 {val === 'due' && unpaidCount > 0 && (
                   <span style={{ background: 'var(--red)', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{unpaidCount}</span>
+                )}
+                {val === 'upcoming' && upcomingCount > 0 && (
+                  <span style={{ background: 'var(--amber)', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{upcomingCount}</span>
                 )}
               </button>
             ))}
@@ -222,18 +243,32 @@ export default function Tenants({ propertyId, isStaff = false }) {
                           <td><span className="badge badge-blue">{t.bed_id}</span></td>
                           <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
                           <td>
-                            {paid ? (
-                              <div>
-                                <span className="badge badge-green">Paid</span>
-                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                                  {payment?.paid_date} · {fmt(payment?.amount)}
+                            {(() => {
+                              const status = getRentStatus(t)
+                              const payment = getPayment(t.id)
+                              const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
+                              if (status === 'paid') return (
+                                <div>
+                                  <span className="badge badge-green">Paid</span>
+                                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                                    {payment?.paid_date} · {fmt(payment?.amount)}
+                                  </div>
                                 </div>
-                              </div>
-                            ) : <span className="badge badge-red">Due</span>}
+                              )
+                              if (status === 'upcoming') return (
+                                <div>
+                                  <span className="badge badge-amber">Due on {joinDay}th</span>
+                                </div>
+                              )
+                              return <span className="badge badge-red">Due</span>
+                            })()}
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {!paid ? (
+                              {getRentStatus(t) === 'paid' ? (
+                                <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
+                                  onClick={() => handleUndoPayment(t)}>Undo</button>
+                              ) : getRentStatus(t) === 'due' ? (
                                 <>
                                   <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }}
                                     onClick={() => openCollect(t)}>Collect rent</button>
@@ -246,7 +281,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
                                 </>
                               ) : (
                                 <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
-                                  onClick={() => handleUndoPayment(t)}>Undo</button>
+                                  onClick={() => openCollect(t)}>Collect early</button>
                               )}
                               {!isStaff && (
                                 <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 10px' }}
