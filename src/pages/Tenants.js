@@ -106,7 +106,7 @@ export default function Tenants({ propertyId }) {
   }
 
   const getWhatsAppMsg = (tenant) => {
-    const msg = `Hi ${tenant.name.split(' ')[0]}, your rent of ${fmt(tenant.rent)} for ${month} is due. Please pay at the earliest. — ABDF Hostel`
+    const msg = `Hi ${tenant.name.split(' ')[0]}, your rent of ${fmt(tenant.rent)} for ${month} is due. Please pay via GPay to 9061780979 (Hosteloops). Thank you! — Hosteloops`
     return `https://wa.me/91${tenant.phone}?text=${encodeURIComponent(msg)}`
   }
 
