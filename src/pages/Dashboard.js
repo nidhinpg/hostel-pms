@@ -16,7 +16,7 @@ function getMonthRange(month) {
   return { start, end }
 }
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate, propertyId }) {
   const [stats, setStats] = useState(null)
   const [recent, setRecent] = useState([])
   const [dueTenants, setDueTenants] = useState([])
@@ -27,11 +27,11 @@ export default function Dashboard({ onNavigate }) {
     const { start, end } = getMonthRange(month)
 
     const [bedsRes, txRes, recentRes, tenantsRes, paymentsRes] = await Promise.all([
-      supabase.from('beds').select('status'),
-      supabase.from('transactions').select('type,amount').gte('date', start).lte('date', end),
-      supabase.from('transactions').select('*').order('date', { ascending: false }).limit(6),
-      supabase.from('tenants').select('*').eq('status', 'active'),
-      supabase.from('rent_payments').select('tenant_id').eq('month', month),
+      supabase.from('beds').select('status').eq('property_id', propertyId),
+      supabase.from('transactions').select('type,amount').eq('property_id', propertyId).gte('date', start).lte('date', end),
+      supabase.from('transactions').select('*').eq('property_id', propertyId).order('date', { ascending: false }).limit(6),
+      supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'active'),
+      supabase.from('rent_payments').select('tenant_id').eq('property_id', propertyId).eq('month', month),
     ])
 
     const beds = bedsRes.data || []
@@ -49,7 +49,7 @@ export default function Dashboard({ onNavigate }) {
     setRecent(recentRes.data || [])
     setDueTenants(due)
     setLoading(false)
-  }, [])
+  }, [propertyId])
 
   useEffect(() => { load() }, [load])
 
@@ -100,35 +100,28 @@ export default function Dashboard({ onNavigate }) {
             Collect rent
           </button>
         </div>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
-          <div style={{ flex: 1, background: 'var(--green-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 80, background: 'var(--green-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--green)' }}>{paidCount}</div>
             <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>Paid</div>
           </div>
-          <div style={{ flex: 1, background: 'var(--red-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+          <div style={{ flex: 1, minWidth: 80, background: 'var(--red-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--red)' }}>{dueTenants.length}</div>
             <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 2 }}>Due</div>
           </div>
-          <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+          <div style={{ flex: 1, minWidth: 80, background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
               {fmt(dueTenants.reduce((a, t) => a + t.rent, 0))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Outstanding</div>
           </div>
         </div>
-
         {dueTenants.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-              Pending tenants
-            </div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Pending</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {dueTenants.map(t => (
-                <div key={t.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: 'var(--red-bg)', borderRadius: 6,
-                  padding: '5px 10px', fontSize: 12
-                }}>
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--red-bg)', borderRadius: 6, padding: '5px 10px', fontSize: 12 }}>
                   <span style={{ fontWeight: 500, color: 'var(--red)' }}>{t.name.split(' ')[0]}</span>
                   <span style={{ color: 'var(--text-secondary)' }}>{t.bed_id}</span>
                   <span style={{ color: 'var(--red)', fontWeight: 600 }}>{fmt(t.rent)}</span>
@@ -164,9 +157,7 @@ export default function Dashboard({ onNavigate }) {
         ) : (
           <div className="table-wrap">
             <table>
-              <thead>
-                <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
-              </thead>
+              <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead>
               <tbody>
                 {recent.map(t => (
                   <tr key={t.id}>
