@@ -55,7 +55,7 @@ function AppContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div className="logo">
               <span className="logo-icon">🏠</span>
-              <span className="logo-text">Hostel PMS</span>
+              <span className="logo-text">Hosteloops PMS</span>
             </div>
 
             {/* Property switcher */}
