@@ -15,27 +15,36 @@ function currentDate() {
 
 export default function Tenants({ propertyId, isStaff = false }) {
   const [tenants, setTenants] = useState([])
+  const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
   const [rentPayments, setRentPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [showCollect, setShowCollect] = useState(false)
+  const [showVacate, setShowVacate] = useState(false)
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [collectAmount, setCollectAmount] = useState('')
   const [collectDate, setCollectDate] = useState(currentDate())
+  const [vacateDate, setVacateDate] = useState(currentDate())
   const [toast, setToast] = useState('')
+  const [tab, setTab] = useState('active') // active | vacated
   const [filterStatus, setFilterStatus] = useState('all')
-  const [form, setForm] = useState({ name: '', phone: '', aadhar: '', bed_id: '', movein_date: currentDate(), rent: '', advance: '' })
+  const [form, setForm] = useState({
+    name: '', phone: '', aadhar: '', bed_id: '',
+    movein_date: currentDate(), rent: '', advance: ''
+  })
 
   const month = currentMonth()
 
   const load = useCallback(async () => {
-    const [t, b, rp] = await Promise.all([
+    const [t, vacated, b, rp] = await Promise.all([
       supabase.from('tenants').select('*').eq('property_id', propertyId).neq('status', 'vacated').order('name'),
+      supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'vacated').order('updated_at', { ascending: false }),
       supabase.from('beds').select('id').eq('property_id', propertyId).eq('status', 'vacant').order('id'),
       supabase.from('rent_payments').select('tenant_id, amount, paid_date').eq('property_id', propertyId).eq('month', month),
     ])
     setTenants(t.data || [])
+    setVacatedTenants(vacated.data || [])
     setVacantBeds(b.data || [])
     setRentPayments(rp.data || [])
     setLoading(false)
@@ -52,6 +61,12 @@ export default function Tenants({ propertyId, isStaff = false }) {
     setCollectAmount(String(tenant.rent))
     setCollectDate(currentDate())
     setShowCollect(true)
+  }
+
+  const openVacate = (tenant) => {
+    setSelectedTenant(tenant)
+    setVacateDate(currentDate())
+    setShowVacate(true)
   }
 
   const handleCollectRent = async () => {
@@ -72,6 +87,21 @@ export default function Tenants({ propertyId, isStaff = false }) {
     }
     showToast(`Rent collected from ${selectedTenant.name}`)
     setShowCollect(false)
+    load()
+  }
+
+  const handleVacate = async () => {
+    // Mark tenant as vacated with vacate date
+    await supabase.from('tenants').update({
+      status: 'vacated',
+      vacate_date: vacateDate
+    }).eq('id', selectedTenant.id)
+
+    // Free up the bed
+    await supabase.from('beds').update({ status: 'vacant' }).eq('id', selectedTenant.bed_id).eq('property_id', propertyId)
+
+    showToast(`${selectedTenant.name} vacated successfully`)
+    setShowVacate(false)
     load()
   }
 
@@ -117,6 +147,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const paidThisMonth = tenants.filter(t => isPaid(t.id)).length
   const unpaidCount = tenants.length - paidThisMonth
   const totalRentDue = tenants.filter(t => !isPaid(t.id)).reduce((a, t) => a + t.rent, 0)
+
   const filteredTenants = tenants.filter(t => {
     if (filterStatus === 'paid') return isPaid(t.id)
     if (filterStatus === 'due') return !isPaid(t.id)
@@ -127,79 +158,159 @@ export default function Tenants({ propertyId, isStaff = false }) {
     <div>
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
-        {!isStaff && <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>}
+        {!isStaff && tab === 'active' && (
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
+        )}
       </div>
 
-      <div className="metrics" style={{ marginBottom: 20 }}>
-        <div className="metric"><div className="metric-label">Total tenants</div><div className="metric-value">{tenants.length}</div><div className="metric-sub">{vacantBeds.length} beds vacant</div></div>
-        <div className="metric"><div className="metric-label">Paid this month</div><div className="metric-value" style={{ color: 'var(--green)' }}>{paidThisMonth}</div><div className="metric-sub">{month}</div></div>
-        <div className="metric"><div className="metric-label">Not paid</div><div className="metric-value" style={{ color: unpaidCount > 0 ? 'var(--red)' : 'var(--green)' }}>{unpaidCount}</div><div className="metric-sub">tenants</div></div>
-        <div className="metric"><div className="metric-label">Outstanding</div><div className="metric-value" style={{ color: totalRentDue > 0 ? 'var(--red)' : 'var(--green)', fontSize: 18 }}>{fmt(totalRentDue)}</div><div className="metric-sub">to collect</div></div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        {[['all', 'All'], ['due', 'Not paid'], ['paid', 'Paid']].map(([val, label]) => (
-          <button key={val} onClick={() => setFilterStatus(val)}
-            className={`btn ${filterStatus === val ? 'btn-primary' : ''}`}
-            style={{ fontSize: 12, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
+      {/* Main tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        {[['active', `Active (${tenants.length})`], ['vacated', `Vacated history (${vacatedTenants.length})`]].map(([val, label]) => (
+          <button key={val} onClick={() => setTab(val)}
+            style={{
+              padding: '8px 16px', fontSize: 13, fontWeight: 500,
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: tab === val ? 'var(--text)' : 'var(--text-secondary)',
+              borderBottom: tab === val ? '2px solid var(--text)' : '2px solid transparent',
+              marginBottom: -1
+            }}>
             {label}
-            {val === 'due' && unpaidCount > 0 && (
-              <span style={{ background: 'var(--red)', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{unpaidCount}</span>
-            )}
           </button>
         ))}
       </div>
 
-      <div className="card">
-        {filteredTenants.length === 0 ? <div className="empty">No tenants found</div> : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Name</th><th>Bed</th><th>Rent</th><th>{month}</th><th>Actions</th></tr></thead>
-              <tbody>
-                {filteredTenants.map(t => {
-                  const paid = isPaid(t.id)
-                  const payment = getPayment(t.id)
-                  return (
-                    <tr key={t.id}>
-                      <td><div style={{ fontWeight: 500 }}>{t.name}</div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.phone}</div></td>
-                      <td><span className="badge badge-blue">{t.bed_id}</span></td>
-                      <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
-                      <td>
-                        {paid ? (
-                          <div><span className="badge badge-green">Paid</span>
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{payment?.paid_date} · {fmt(payment?.amount)}</div>
-                          </div>
-                        ) : <span className="badge badge-red">Due</span>}
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {!paid ? (
-                            <>
-                              <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => openCollect(t)}>Collect rent</button>
-                              {t.phone && (
-                                <a href={getWhatsAppMsg(t)} target="_blank" rel="noreferrer"
-                                  className="btn" style={{ fontSize: 11, padding: '4px 10px', textDecoration: 'none', color: 'var(--green)', borderColor: '#a8d5bb', background: 'var(--green-bg)' }}>
-                                  WhatsApp
-                                </a>
-                              )}
-                            </>
-                          ) : (
-                            <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }} onClick={() => handleUndoPayment(t)}>Undo</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+      {/* ACTIVE TENANTS TAB */}
+      {tab === 'active' && (
+        <>
+          <div className="metrics" style={{ marginBottom: 20 }}>
+            <div className="metric"><div className="metric-label">Total tenants</div><div className="metric-value">{tenants.length}</div><div className="metric-sub">{vacantBeds.length} beds vacant</div></div>
+            <div className="metric"><div className="metric-label">Paid this month</div><div className="metric-value" style={{ color: 'var(--green)' }}>{paidThisMonth}</div><div className="metric-sub">{month}</div></div>
+            <div className="metric"><div className="metric-label">Not paid</div><div className="metric-value" style={{ color: unpaidCount > 0 ? 'var(--red)' : 'var(--green)' }}>{unpaidCount}</div><div className="metric-sub">tenants</div></div>
+            <div className="metric"><div className="metric-label">Outstanding</div><div className="metric-value" style={{ color: totalRentDue > 0 ? 'var(--red)' : 'var(--green)', fontSize: 18 }}>{fmt(totalRentDue)}</div><div className="metric-sub">to collect</div></div>
           </div>
-        )}
-      </div>
 
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {[['all', 'All'], ['due', 'Not paid'], ['paid', 'Paid']].map(([val, label]) => (
+              <button key={val} onClick={() => setFilterStatus(val)}
+                className={`btn ${filterStatus === val ? 'btn-primary' : ''}`}
+                style={{ fontSize: 12, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                {label}
+                {val === 'due' && unpaidCount > 0 && (
+                  <span style={{ background: 'var(--red)', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{unpaidCount}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="card">
+            {filteredTenants.length === 0 ? <div className="empty">No tenants found</div> : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Name</th><th>Bed</th><th>Rent</th><th>{month}</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {filteredTenants.map(t => {
+                      const paid = isPaid(t.id)
+                      const payment = getPayment(t.id)
+                      return (
+                        <tr key={t.id}>
+                          <td>
+                            <div style={{ fontWeight: 500 }}>{t.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.phone}</div>
+                          </td>
+                          <td><span className="badge badge-blue">{t.bed_id}</span></td>
+                          <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
+                          <td>
+                            {paid ? (
+                              <div>
+                                <span className="badge badge-green">Paid</span>
+                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                                  {payment?.paid_date} · {fmt(payment?.amount)}
+                                </div>
+                              </div>
+                            ) : <span className="badge badge-red">Due</span>}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {!paid ? (
+                                <>
+                                  <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }}
+                                    onClick={() => openCollect(t)}>Collect rent</button>
+                                  {t.phone && (
+                                    <a href={getWhatsAppMsg(t)} target="_blank" rel="noreferrer"
+                                      className="btn" style={{ fontSize: 11, padding: '4px 10px', textDecoration: 'none', color: 'var(--green)', borderColor: '#a8d5bb', background: 'var(--green-bg)' }}>
+                                      WhatsApp
+                                    </a>
+                                  )}
+                                </>
+                              ) : (
+                                <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
+                                  onClick={() => handleUndoPayment(t)}>Undo</button>
+                              )}
+                              {!isStaff && (
+                                <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 10px' }}
+                                  onClick={() => openVacate(t)}>Vacate</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* VACATED HISTORY TAB */}
+      {tab === 'vacated' && (
+        <div className="card">
+          {vacatedTenants.length === 0 ? (
+            <div className="empty">No vacated tenants yet</div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Name</th><th>Bed</th><th>Phone</th><th>Move-in</th><th>Vacated on</th><th>Rent</th></tr>
+                </thead>
+                <tbody>
+                  {vacatedTenants.map(t => (
+                    <tr key={t.id}>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{t.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.aadhar}</div>
+                      </td>
+                      <td><span className="badge badge-blue">{t.bed_id}</span></td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{t.phone || '—'}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{t.movein_date}</td>
+                      <td>
+                        {t.vacate_date
+                          ? <span className="badge badge-red">{t.vacate_date}</span>
+                          : <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                        }
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* COLLECT RENT MODAL */}
       {showCollect && selectedTenant && (
         <Modal title={`Collect rent — ${selectedTenant.name}`} onClose={() => setShowCollect(false)}
-          footer={<><button className="btn" onClick={() => setShowCollect(false)}>Cancel</button><button className="btn btn-primary" onClick={handleCollectRent}>Confirm payment</button></>}>
+          footer={
+            <>
+              <button className="btn" onClick={() => setShowCollect(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleCollectRent}>Confirm payment</button>
+            </>
+          }>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
               <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span style={{ fontWeight: 500 }}>{selectedTenant.name}</span></div>
@@ -210,14 +321,48 @@ export default function Tenants({ propertyId, isStaff = false }) {
               <div className="form-group"><label>Amount (₹)</label><input type="number" value={collectAmount} onChange={e => setCollectAmount(e.target.value)} /></div>
               <div className="form-group"><label>Payment date</label><input type="date" value={collectDate} onChange={e => setCollectDate(e.target.value)} /></div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 6 }}>Auto-adds to Income & expenses.</div>
+            <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 6 }}>
+              Auto-adds to Income & expenses.
+            </div>
           </div>
         </Modal>
       )}
 
+      {/* VACATE MODAL */}
+      {showVacate && selectedTenant && (
+        <Modal title={`Vacate — ${selectedTenant.name}`} onClose={() => setShowVacate(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setShowVacate(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleVacate}>Confirm vacate</button>
+            </>
+          }>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+              <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span style={{ fontWeight: 500 }}>{selectedTenant.name}</span></div>
+              <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Bed</span><span>{selectedTenant.bed_id}</span></div>
+              <div className="row-between"><span style={{ color: 'var(--text-secondary)' }}>Move-in</span><span>{selectedTenant.movein_date}</span></div>
+            </div>
+            <div className="form-group">
+              <label>Vacate date</label>
+              <input type="date" value={vacateDate} onChange={e => setVacateDate(e.target.value)} />
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--red)', background: 'var(--red-bg)', padding: '8px 12px', borderRadius: 6 }}>
+              This will free up bed {selectedTenant.bed_id} and move tenant to vacated history.
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ADD TENANT MODAL */}
       {showAdd && (
         <Modal title="Add new tenant" onClose={() => setShowAdd(false)}
-          footer={<><button className="btn" onClick={() => setShowAdd(false)}>Cancel</button><button className="btn btn-primary" onClick={handleAdd}>Save tenant</button></>}>
+          footer={
+            <>
+              <button className="btn" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleAdd}>Save tenant</button>
+            </>
+          }>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="form-grid">
               <div className="form-group"><label>Full name *</label><input placeholder="Rahul Nair" value={form.name} onChange={f('name')} /></div>
@@ -225,7 +370,8 @@ export default function Tenants({ propertyId, isStaff = false }) {
             </div>
             <div className="form-grid">
               <div className="form-group"><label>Aadhaar no.</label><input placeholder="XXXX XXXX XXXX" value={form.aadhar} onChange={f('aadhar')} /></div>
-              <div className="form-group"><label>Bed *</label>
+              <div className="form-group">
+                <label>Bed *</label>
                 <select value={form.bed_id} onChange={f('bed_id')}>
                   <option value="">Select bed</option>
                   {vacantBeds.map(b => <option key={b.id} value={b.id}>{b.id}</option>)}
