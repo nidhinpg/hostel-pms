@@ -17,7 +17,7 @@ function getMonthRange(month) {
   return { start, end }
 }
 
-export default function Finance({ propertyId }) {
+export default function Finance({ propertyId, isStaff = false }) {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -119,10 +119,12 @@ export default function Finance({ propertyId }) {
                       {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
                     </td>
                     <td>
-                      <button onClick={() => handleDelete(t.id)} title="Delete"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '0 4px', lineHeight: 1 }}
-                        onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}>×</button>
+                      {!isStaff && (
+                        <button onClick={() => handleDelete(t.id)} title="Delete"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '0 4px', lineHeight: 1 }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}>×</button>
+                      )}
                     </td>
                   </tr>
                 ))}
