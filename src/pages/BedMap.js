@@ -8,7 +8,7 @@ const STRUCTURE = [
   { floor: 'Floor 3', rooms: ['301', '302', '303', '304'] }
 ]
 
-export default function BedMap({ propertyId }) {
+export default function BedMap({ propertyId, isStaff = false }) {
   const [beds, setBeds] = useState([])
   const [tenants, setTenants] = useState([])
   const [loading, setLoading] = useState(true)
@@ -84,7 +84,7 @@ export default function BedMap({ propertyId }) {
     <div>
       <div className="page-header">
         <h1 className="page-title">Bed map</h1>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add bed</button>
+        {!isStaff && <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add bed</button>}
       </div>
 
       <div className="legend">
@@ -167,10 +167,10 @@ export default function BedMap({ propertyId }) {
           <Modal title={`Bed ${selected.id}`} onClose={() => setSelected(null)}
             footer={
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>
-                {selected.status !== 'vacant' && <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>}
-                {selected.status !== 'maintenance' && <button className="btn" onClick={() => handleSetStatus('maintenance')}>Mark maintenance</button>}
-                {selected.status === 'maintenance' && <button className="btn btn-primary" onClick={() => handleSetStatus('vacant')}>Back to vacant</button>}
+                {!isStaff && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
+                {!isStaff && selected.status !== 'vacant' && <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>}
+                {!isStaff && selected.status !== 'maintenance' && <button className="btn" onClick={() => handleSetStatus('maintenance')}>Mark maintenance</button>}
+                {!isStaff && selected.status === 'maintenance' && <button className="btn btn-primary" onClick={() => handleSetStatus('vacant')}>Back to vacant</button>}
                 <button className="btn" onClick={() => setSelected(null)}>Close</button>
               </div>
             }>
