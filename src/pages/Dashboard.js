@@ -16,10 +16,19 @@ function getMonthRange(month) {
   return { start, end }
 }
 
+// Tenant is "due" only if today >= their movein day AND not paid
+function isTenantDue(tenant, paidIds) {
+  if (paidIds.includes(tenant.id)) return false
+  const todayDay = new Date().getDate()
+  const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
+  return todayDay >= joinDay
+}
+
 export default function Dashboard({ onNavigate, propertyId }) {
   const [stats, setStats] = useState(null)
   const [recent, setRecent] = useState([])
   const [dueTenants, setDueTenants] = useState([])
+  const [upcomingCount, setUpcomingCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -42,12 +51,16 @@ export default function Dashboard({ onNavigate, propertyId }) {
     const occupied = beds.filter(b => b.status === 'occupied').length
     const income = tx.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0)
     const expense = tx.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0)
-    const due = tenants.filter(t => !paidIds.includes(t.id))
-    const paidCount = tenants.length - due.length
+
+    // Only tenants whose rent day has passed
+    const due = tenants.filter(t => isTenantDue(t, paidIds))
+    const upcoming = tenants.filter(t => !paidIds.includes(t.id) && !isTenantDue(t, paidIds))
+    const paidCount = paidIds.length
 
     setStats({ total: beds.length, occupied, income, expense, totalTenants: tenants.length, paidCount })
     setRecent(recentRes.data || [])
     setDueTenants(due)
+    setUpcomingCount(upcoming.length)
     setLoading(false)
   }, [propertyId])
 
@@ -92,7 +105,7 @@ export default function Dashboard({ onNavigate, propertyId }) {
         </div>
       </div>
 
-      {/* Rent collection status */}
+      {/* Rent collection card */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="row-between" style={{ marginBottom: 14 }}>
           <span className="card-title" style={{ margin: 0 }}>Rent collection — {month}</span>
@@ -100,7 +113,8 @@ export default function Dashboard({ onNavigate, propertyId }) {
             Collect rent
           </button>
         </div>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+
+        <div style={{ display: 'flex', gap: 12, marginBottom: dueTenants.length > 0 ? 14 : 0, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 80, background: 'var(--green-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--green)' }}>{paidCount}</div>
             <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>Paid</div>
@@ -109,6 +123,10 @@ export default function Dashboard({ onNavigate, propertyId }) {
             <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--red)' }}>{dueTenants.length}</div>
             <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 2 }}>Due</div>
           </div>
+          <div style={{ flex: 1, minWidth: 80, background: 'var(--amber-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--amber)' }}>{upcomingCount}</div>
+            <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Upcoming</div>
+          </div>
           <div style={{ flex: 1, minWidth: 80, background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
               {fmt(dueTenants.reduce((a, t) => a + t.rent, 0))}
@@ -116,27 +134,47 @@ export default function Dashboard({ onNavigate, propertyId }) {
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Outstanding</div>
           </div>
         </div>
+
+        {/* Only show actually due tenants */}
         {dueTenants.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Pending</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Rent overdue
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {dueTenants.map(t => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--red-bg)', borderRadius: 6, padding: '5px 10px', fontSize: 12 }}>
-                  <span style={{ fontWeight: 500, color: 'var(--red)' }}>{t.name.split(' ')[0]}</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{t.bed_id}</span>
-                  <span style={{ color: 'var(--red)', fontWeight: 600 }}>{fmt(t.rent)}</span>
-                </div>
-              ))}
+              {dueTenants.map(t => {
+                const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
+                return (
+                  <div key={t.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: 'var(--red-bg)', borderRadius: 6,
+                    padding: '5px 10px', fontSize: 12
+                  }}>
+                    <span style={{ fontWeight: 500, color: 'var(--red)' }}>{t.name.split(' ')[0]}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t.bed_id}</span>
+                    <span style={{ color: 'var(--red)', fontWeight: 600 }}>{fmt(t.rent)}</span>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>due {joinDay}th</span>
+                  </div>
+                )
+              })}
             </div>
           </>
         )}
-        {dueTenants.length === 0 && totalTenants > 0 && (
+
+        {dueTenants.length === 0 && upcomingCount === 0 && totalTenants > 0 && (
           <div style={{ textAlign: 'center', padding: '10px 0', color: 'var(--green)', fontSize: 13, fontWeight: 500 }}>
             ✓ All tenants paid for {month}!
           </div>
         )}
+
+        {dueTenants.length === 0 && upcomingCount > 0 && (
+          <div style={{ textAlign: 'center', padding: '10px 0', color: 'var(--amber)', fontSize: 13, fontWeight: 500 }}>
+            No overdue rents — {upcomingCount} tenant{upcomingCount > 1 ? 's' : ''} upcoming
+          </div>
+        )}
       </div>
 
+      {/* Bed utilization */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span className="section-title">Bed utilization</span>
@@ -147,6 +185,7 @@ export default function Dashboard({ onNavigate, propertyId }) {
         </div>
       </div>
 
+      {/* Recent transactions */}
       <div className="card">
         <div className="row-between" style={{ marginBottom: 14 }}>
           <span className="card-title" style={{ margin: 0 }}>Recent transactions</span>
