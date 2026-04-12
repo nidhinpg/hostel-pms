@@ -29,6 +29,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const [toast, setToast] = useState('')
   const [tab, setTab] = useState('active') // active | vacated
   const [filterStatus, setFilterStatus] = useState('all')
+  const [search, setSearch] = useState('')
   const [form, setForm] = useState({
     name: '', phone: '', aadhar: '', bed_id: '',
     movein_date: currentDate(), rent: '', advance: ''
@@ -161,10 +162,18 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const totalRentDue = tenants.filter(t => getRentStatus(t) === 'due').reduce((a, t) => a + t.rent, 0)
 
   const filteredTenants = tenants.filter(t => {
-    if (filterStatus === 'paid') return getRentStatus(t) === 'paid'
-    if (filterStatus === 'due') return getRentStatus(t) === 'due'
-    if (filterStatus === 'upcoming') return getRentStatus(t) === 'upcoming'
-    return true
+    const matchesStatus = filterStatus === 'paid' ? getRentStatus(t) === 'paid'
+      : filterStatus === 'due' ? getRentStatus(t) === 'due'
+      : filterStatus === 'upcoming' ? getRentStatus(t) === 'upcoming'
+      : true
+    const q = search.toLowerCase()
+    const matchesSearch = !q || t.name.toLowerCase().includes(q) || (t.bed_id || '').toLowerCase().includes(q) || (t.phone || '').includes(q)
+    return matchesStatus && matchesSearch
+  })
+
+  const filteredVacated = vacatedTenants.filter(t => {
+    const q = search.toLowerCase()
+    return !q || t.name.toLowerCase().includes(q) || (t.bed_id || '').toLowerCase().includes(q) || (t.phone || '').includes(q)
   })
 
   return (
@@ -179,7 +188,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
       {/* Main tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
         {[['active', `Active (${tenants.length})`], ['vacated', `Vacated history (${vacatedTenants.length})`]].map(([val, label]) => (
-          <button key={val} onClick={() => setTab(val)}
+          <button key={val} onClick={() => { setTab(val); setSearch('') }}
             style={{
               padding: '8px 16px', fontSize: 13, fontWeight: 500,
               background: 'none', border: 'none', cursor: 'pointer',
@@ -190,6 +199,28 @@ export default function Tenants({ propertyId, isStaff = false }) {
             {label}
           </button>
         ))}
+      </div>
+
+      {/* Search bar — works across both tabs */}
+      <div style={{ position: 'relative', marginBottom: 16 }}>
+        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', fontSize: 15, pointerEvents: 'none' }}>🔍</span>
+        <input
+          placeholder="Search by name, bed or phone..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            width: '100%', padding: '9px 12px 9px 34px',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'var(--text)'
+          }}
+        />
+        {search && (
+          <button onClick={() => setSearch('')}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>
+            ×
+          </button>
+        )}
       </div>
 
       {/* ACTIVE TENANTS TAB */}
@@ -303,7 +334,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
       {/* VACATED HISTORY TAB */}
       {tab === 'vacated' && (
         <div className="card">
-          {vacatedTenants.length === 0 ? (
+          {filteredVacated.length === 0 ? (
             <div className="empty">No vacated tenants yet</div>
           ) : (
             <div className="table-wrap">
@@ -312,7 +343,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
                   <tr><th>Name</th><th>Bed</th><th>Phone</th><th>Move-in</th><th>Vacated on</th><th>Rent</th></tr>
                 </thead>
                 <tbody>
-                  {vacatedTenants.map(t => (
+                  {filteredVacated.map(t => (
                     <tr key={t.id}>
                       <td>
                         <div style={{ fontWeight: 500 }}>{t.name}</div>
