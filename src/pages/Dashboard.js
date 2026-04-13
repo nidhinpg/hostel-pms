@@ -28,6 +28,7 @@ export default function Dashboard({ onNavigate, propertyId }) {
   const [stats, setStats] = useState(null)
   const [recent, setRecent] = useState([])
   const [dueTenants, setDueTenants] = useState([])
+  const [endingSoon, setEndingSoon] = useState([])
   const [upcomingCount, setUpcomingCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -35,12 +36,13 @@ export default function Dashboard({ onNavigate, propertyId }) {
     const month = currentMonth()
     const { start, end } = getMonthRange(month)
 
-    const [bedsRes, txRes, recentRes, tenantsRes, paymentsRes] = await Promise.all([
+    const [bedsRes, txRes, recentRes, tenantsRes, paymentsRes, endingSoonRes] = await Promise.all([
       supabase.from('beds').select('status').eq('property_id', propertyId),
       supabase.from('transactions').select('type,amount').eq('property_id', propertyId).gte('date', start).lte('date', end),
       supabase.from('transactions').select('*').eq('property_id', propertyId).order('date', { ascending: false }).limit(6),
       supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'active'),
       supabase.from('rent_payments').select('tenant_id').eq('property_id', propertyId).eq('month', month),
+      supabase.from('rent_payments').select('tenant_id, stay_end_date, days_paid').eq('property_id', propertyId).eq('month', month).not('stay_end_date', 'is', null),
     ])
 
     const beds = bedsRes.data || []
@@ -57,7 +59,21 @@ export default function Dashboard({ onNavigate, propertyId }) {
     const upcoming = tenants.filter(t => !paidIds.includes(t.id) && !isTenantDue(t, paidIds))
     const paidCount = paidIds.length
 
+    // Find tenants whose stay ends in 3 days or less
+    const today = new Date()
+    const endingSoon = []
+    for (const rp of endingSoonRes.data || []) {
+      if (!rp.stay_end_date) continue
+      const end = new Date(rp.stay_end_date)
+      const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24))
+      if (diff <= 3) {
+        const tenant = tenants.find(t => t.id === rp.tenant_id)
+        if (tenant) endingSoon.push({ ...tenant, stay_end_date: rp.stay_end_date, days_left: diff })
+      }
+    }
+
     setStats({ total: beds.length, occupied, income, expense, totalTenants: tenants.length, paidCount })
+    setEndingSoon(endingSoon)
     setRecent(recentRes.data || [])
     setDueTenants(due)
     setUpcomingCount(upcoming.length)
@@ -175,6 +191,34 @@ export default function Dashboard({ onNavigate, propertyId }) {
       </div>
 
       {/* Bed utilization */}
+      {/* Stay ending alerts */}
+      {endingSoon.length > 0 && (
+        <div style={{ background: 'var(--red-bg)', border: '1px solid #f5c0c0', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--red)', marginBottom: 10 }}>
+            ⚠ Stay ending soon — {endingSoon.length} tenant{endingSoon.length > 1 ? 's' : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {endingSoon.map(t => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', borderRadius: 8, padding: '8px 12px', fontSize: 13 }}>
+                <div>
+                  <span style={{ fontWeight: 600 }}>{t.name}</span>
+                  <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>{t.bed_id}</span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  {t.days_left < 0
+                    ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>Ended {Math.abs(t.days_left)}d ago</span>
+                    : t.days_left === 0
+                    ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>Ends TODAY</span>
+                    : <span style={{ color: 'var(--amber)', fontWeight: 600 }}>{t.days_left} day{t.days_left > 1 ? 's' : ''} left</span>
+                  }
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>till {t.stay_end_date}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span className="section-title">Bed utilization</span>
