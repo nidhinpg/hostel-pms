@@ -25,6 +25,8 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [collectAmount, setCollectAmount] = useState('')
   const [collectDate, setCollectDate] = useState(currentDate())
+  const [daysPaid, setDaysPaid] = useState('')
+  const [isPartialPay, setIsPartialPay] = useState(false)
   const [vacateDate, setVacateDate] = useState(currentDate())
   const [toast, setToast] = useState('')
   const [tab, setTab] = useState('active') // active | vacated
@@ -68,10 +70,22 @@ export default function Tenants({ propertyId, isStaff = false }) {
   }
   const isDue = (tenant) => getRentStatus(tenant) === 'due'
 
+  // Days remaining for partial pay tenants
+  const getDaysRemaining = (tenantId) => {
+    const payment = getPayment(tenantId)
+    if (!payment || !payment.stay_end_date) return null
+    const today = new Date()
+    const end = new Date(payment.stay_end_date)
+    const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24))
+    return diff
+  }
+
   const openCollect = (tenant) => {
     setSelectedTenant(tenant)
     setCollectAmount(String(tenant.rent))
     setCollectDate(currentDate())
+    setDaysPaid('')
+    setIsPartialPay(false)
     setShowCollect(true)
   }
 
@@ -84,15 +98,30 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const handleCollectRent = async () => {
     if (!collectAmount) { showToast('Enter amount'); return }
     const amount = parseInt(collectAmount)
+
+    // Calculate stay_end_date if days_paid is entered
+    let stayEndDate = null
+    if (isPartialPay && daysPaid) {
+      const d = new Date(collectDate)
+      d.setDate(d.getDate() + parseInt(daysPaid) - 1)
+      stayEndDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    }
+
     const { error } = await supabase.from('rent_payments').upsert({
       tenant_id: selectedTenant.id, month, amount,
-      paid_date: collectDate, property_id: propertyId
+      paid_date: collectDate, property_id: propertyId,
+      days_paid: isPartialPay && daysPaid ? parseInt(daysPaid) : null,
+      stay_end_date: stayEndDate
     }, { onConflict: 'tenant_id,month' })
     if (error) { showToast('Error: ' + error.message); return }
+
+    const desc = isPartialPay && daysPaid
+      ? `${selectedTenant.name} — ${daysPaid} days rent (till ${stayEndDate})`
+      : `${selectedTenant.name} — ${month} rent`
+
     await supabase.from('transactions').insert({
       date: collectDate, type: 'income', category: 'Rent',
-      description: `${selectedTenant.name} — ${month} rent`,
-      amount, property_id: propertyId
+      description: desc, amount, property_id: propertyId
     })
     if (selectedTenant.status === 'due') {
       await supabase.from('tenants').update({ status: 'active' }).eq('id', selectedTenant.id)
@@ -278,12 +307,25 @@ export default function Tenants({ propertyId, isStaff = false }) {
                               const status = getRentStatus(t)
                               const payment = getPayment(t.id)
                               const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
+                              const daysLeft = getDaysRemaining(t.id)
+
                               if (status === 'paid') return (
                                 <div>
                                   <span className="badge badge-green">Paid</span>
                                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
                                     {payment?.paid_date} · {fmt(payment?.amount)}
                                   </div>
+                                  {payment?.stay_end_date && (
+                                    <div style={{ marginTop: 4 }}>
+                                      {daysLeft < 0 ? (
+                                        <span className="badge badge-red" style={{ fontSize: 10 }}>Stay ended {Math.abs(daysLeft)}d ago</span>
+                                      ) : daysLeft <= 3 ? (
+                                        <span className="badge badge-red" style={{ fontSize: 10 }}>⚠ {daysLeft === 0 ? 'Ends today!' : `${daysLeft}d left`}</span>
+                                      ) : (
+                                        <span className="badge badge-amber" style={{ fontSize: 10 }}>{daysLeft}d left · till {payment.stay_end_date}</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )
                               if (status === 'upcoming') return (
@@ -381,14 +423,46 @@ export default function Tenants({ propertyId, isStaff = false }) {
             <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
               <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span style={{ fontWeight: 500 }}>{selectedTenant.name}</span></div>
               <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Bed</span><span>{selectedTenant.bed_id}</span></div>
-              <div className="row-between"><span style={{ color: 'var(--text-secondary)' }}>Month</span><span style={{ fontWeight: 500 }}>{month}</span></div>
+              <div className="row-between"><span style={{ color: 'var(--text-secondary)' }}>Monthly rent</span><span style={{ fontWeight: 600 }}>₹{Number(selectedTenant.rent).toLocaleString('en-IN')}</span></div>
             </div>
             <div className="form-grid">
               <div className="form-group"><label>Amount (₹)</label><input type="number" value={collectAmount} onChange={e => setCollectAmount(e.target.value)} /></div>
               <div className="form-group"><label>Payment date</label><input type="date" value={collectDate} onChange={e => setCollectDate(e.target.value)} /></div>
             </div>
+
+            {/* Partial pay toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+              <input type="checkbox" id="partial-toggle" checked={isPartialPay}
+                onChange={e => { setIsPartialPay(e.target.checked); if (!e.target.checked) setDaysPaid('') }}
+                style={{ width: 16, height: 16, cursor: 'pointer' }} />
+              <label htmlFor="partial-toggle" style={{ fontSize: 13, cursor: 'pointer', color: 'var(--text)' }}>
+                Paying for specific days only
+              </label>
+            </div>
+
+            {isPartialPay && (
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Number of days paid</label>
+                  <input type="number" placeholder="e.g. 15" value={daysPaid}
+                    onChange={e => setDaysPaid(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Stay ends on</label>
+                  <input type="text" readOnly value={(() => {
+                    if (!daysPaid || !collectDate) return '—'
+                    const d = new Date(collectDate)
+                    d.setDate(d.getDate() + parseInt(daysPaid) - 1)
+                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                  })()} style={{ background: 'var(--bg)', color: 'var(--green)', fontWeight: 600 }} />
+                </div>
+              </div>
+            )}
+
             <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 6 }}>
-              Auto-adds to Income & expenses.
+              {isPartialPay && daysPaid
+                ? `Will alert you when ${selectedTenant.name.split(' ')[0]}'s ${daysPaid} days are ending.`
+                : 'Auto-adds to Income & expenses.'}
             </div>
           </div>
         </Modal>
