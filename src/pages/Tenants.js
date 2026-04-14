@@ -126,6 +126,35 @@ export default function Tenants({ propertyId, isStaff = false }) {
     if (selectedTenant.status === 'due') {
       await supabase.from('tenants').update({ status: 'active' }).eq('id', selectedTenant.id)
     }
+
+    // Build WhatsApp receipt message
+    if (selectedTenant.phone) {
+      const name = selectedTenant.name.split(' ')[0]
+      let msg = ''
+      if (isPartialPay && daysPaid && stayEndDate) {
+        msg = `Hi ${name},\n\nReceipt - Hosteloops Hostel\n` +
+          `----------------------------\n` +
+          `Bed: ${selectedTenant.bed_id}\n` +
+          `Amount paid: ₹${Number(amount).toLocaleString('en-IN')}\n` +
+          `Days: ${daysPaid} days\n` +
+          `Valid from: ${collectDate}\n` +
+          `Valid till: ${stayEndDate}\n` +
+          `----------------------------\n` +
+          `Thank you! — Hosteloops`
+      } else {
+        msg = `Hi ${name},\n\nReceipt - Hosteloops Hostel\n` +
+          `----------------------------\n` +
+          `Bed: ${selectedTenant.bed_id}\n` +
+          `Amount paid: ₹${Number(amount).toLocaleString('en-IN')}\n` +
+          `Month: ${month}\n` +
+          `Date: ${collectDate}\n` +
+          `----------------------------\n` +
+          `Thank you! — Hosteloops`
+      }
+      const waUrl = `https://wa.me/91${selectedTenant.phone}?text=${encodeURIComponent(msg)}`
+      window.open(waUrl, '_blank')
+    }
+
     showToast(`Rent collected from ${selectedTenant.name}`)
     setShowCollect(false)
     load()
