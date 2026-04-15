@@ -176,7 +176,7 @@ function AppContent() {
             : <>
                 {page === 'dashboard' && <Dashboard onNavigate={(p, filter) => { setPage(p); if (filter) setTenantFilter(filter); else setTenantFilter('all') }} propertyId={activeProperty.id} />}
                 {page === 'beds' && <BedMap propertyId={activeProperty.id} isStaff={isStaff} />}
-                {page === 'tenants' && <Tenants propertyId={activeProperty.id} isStaff={isStaff} initialFilter={tenantFilter} />}
+                {page === 'tenants' && <Tenants key={tenantFilter} propertyId={activeProperty.id} isStaff={isStaff} initialFilter={tenantFilter} />}
                 {page === 'finance' && <Finance propertyId={activeProperty.id} isStaff={isStaff} />}
                 {page === 'reports' && !isStaff && <Reports propertyId={activeProperty.id} />}
               </>
