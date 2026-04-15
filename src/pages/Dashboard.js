@@ -131,17 +131,21 @@ export default function Dashboard({ onNavigate, propertyId }) {
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginBottom: dueTenants.length > 0 ? 14 : 0, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 80, background: 'var(--green-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+          <div onClick={() => onNavigate('tenants', 'paid')} style={{ flex: 1, minWidth: 80, background: 'var(--green-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center', cursor: 'pointer' }}>
             <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--green)' }}>{paidCount}</div>
-            <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>Paid</div>
+            <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>Paid ↗</div>
           </div>
-          <div style={{ flex: 1, minWidth: 80, background: 'var(--red-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+          <div onClick={() => onNavigate('tenants', 'due')} style={{ flex: 1, minWidth: 80, background: 'var(--red-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center', cursor: 'pointer' }}>
             <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--red)' }}>{dueTenants.length}</div>
-            <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 2 }}>Due</div>
+            <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 2 }}>Due ↗</div>
           </div>
           <div style={{ flex: 1, minWidth: 80, background: 'var(--amber-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--amber)' }}>{upcomingCount}</div>
             <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Upcoming</div>
+          </div>
+          <div onClick={() => onNavigate('tenants', 'upcoming')} style={{ flex: 1, minWidth: 80, background: 'var(--amber-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center', cursor: 'pointer' }}>
+            <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--amber)' }}>{stats.totalTenants - paidCount - dueTenants.length}</div>
+            <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Upcoming ↗</div>
           </div>
           <div style={{ flex: 1, minWidth: 80, background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
