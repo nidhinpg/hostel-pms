@@ -13,7 +13,7 @@ function currentDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-export default function Tenants({ propertyId, isStaff = false }) {
+export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all' }) {
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
@@ -30,7 +30,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const [vacateDate, setVacateDate] = useState(currentDate())
   const [toast, setToast] = useState('')
   const [tab, setTab] = useState('active') // active | vacated
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus, setFilterStatus] = useState(initialFilter)
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({
     name: '', phone: '', aadhar: '', bed_id: '',
@@ -38,6 +38,9 @@ export default function Tenants({ propertyId, isStaff = false }) {
   })
 
   const month = currentMonth()
+
+  // Sync filter when navigating from dashboard
+  useEffect(() => { setFilterStatus(initialFilter) }, [initialFilter])
 
   const load = useCallback(async () => {
     const [t, vacated, b, rp] = await Promise.all([
