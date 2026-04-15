@@ -13,7 +13,7 @@ function currentDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-export default function Tenants({ propertyId, isStaff = false }) {
+export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all' }) {
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
@@ -25,10 +25,13 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [collectAmount, setCollectAmount] = useState('')
   const [collectDate, setCollectDate] = useState(currentDate())
+  const [daysPaid, setDaysPaid] = useState('')
+  const [isPartialPay, setIsPartialPay] = useState(false)
   const [vacateDate, setVacateDate] = useState(currentDate())
   const [toast, setToast] = useState('')
   const [tab, setTab] = useState('active') // active | vacated
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus, setFilterStatus] = useState(initialFilter)
+  const [search, setSearch] = useState('')
   const [form, setForm] = useState({
     name: '', phone: '', aadhar: '', bed_id: '',
     movein_date: currentDate(), rent: '', advance: ''
@@ -36,12 +39,15 @@ export default function Tenants({ propertyId, isStaff = false }) {
 
   const month = currentMonth()
 
+  // Sync filter when navigating from dashboard
+  useEffect(() => { setFilterStatus(initialFilter) }, [initialFilter])
+
   const load = useCallback(async () => {
     const [t, vacated, b, rp] = await Promise.all([
       supabase.from('tenants').select('*').eq('property_id', propertyId).neq('status', 'vacated').order('name'),
       supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'vacated').order('updated_at', { ascending: false }),
       supabase.from('beds').select('id').eq('property_id', propertyId).eq('status', 'vacant').order('id'),
-      supabase.from('rent_payments').select('tenant_id, amount, paid_date').eq('property_id', propertyId).eq('month', month),
+      supabase.from('rent_payments').select('tenant_id, amount, paid_date, stay_end_date, days_paid').eq('property_id', propertyId).eq('month', month),
     ])
     setTenants(t.data || [])
     setVacatedTenants(vacated.data || [])
@@ -67,10 +73,22 @@ export default function Tenants({ propertyId, isStaff = false }) {
   }
   const isDue = (tenant) => getRentStatus(tenant) === 'due'
 
+  // Days remaining for partial pay tenants
+  const getDaysRemaining = (tenantId) => {
+    const payment = getPayment(tenantId)
+    if (!payment || !payment.stay_end_date) return null
+    const today = new Date()
+    const end = new Date(payment.stay_end_date)
+    const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24))
+    return diff
+  }
+
   const openCollect = (tenant) => {
     setSelectedTenant(tenant)
     setCollectAmount(String(tenant.rent))
     setCollectDate(currentDate())
+    setDaysPaid('')
+    setIsPartialPay(false)
     setShowCollect(true)
   }
 
@@ -83,19 +101,63 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const handleCollectRent = async () => {
     if (!collectAmount) { showToast('Enter amount'); return }
     const amount = parseInt(collectAmount)
+
+    // Calculate stay_end_date if days_paid is entered
+    let stayEndDate = null
+    if (isPartialPay && daysPaid) {
+      const d = new Date(collectDate)
+      d.setDate(d.getDate() + parseInt(daysPaid) - 1)
+      stayEndDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    }
+
     const { error } = await supabase.from('rent_payments').upsert({
       tenant_id: selectedTenant.id, month, amount,
-      paid_date: collectDate, property_id: propertyId
+      paid_date: collectDate, property_id: propertyId,
+      days_paid: isPartialPay && daysPaid ? parseInt(daysPaid) : null,
+      stay_end_date: stayEndDate
     }, { onConflict: 'tenant_id,month' })
     if (error) { showToast('Error: ' + error.message); return }
+
+    const desc = isPartialPay && daysPaid
+      ? `${selectedTenant.name} — ${daysPaid} days rent (till ${stayEndDate})`
+      : `${selectedTenant.name} — ${month} rent`
+
     await supabase.from('transactions').insert({
       date: collectDate, type: 'income', category: 'Rent',
-      description: `${selectedTenant.name} — ${month} rent`,
-      amount, property_id: propertyId
+      description: desc, amount, property_id: propertyId
     })
     if (selectedTenant.status === 'due') {
       await supabase.from('tenants').update({ status: 'active' }).eq('id', selectedTenant.id)
     }
+
+    // Build WhatsApp receipt message
+    if (selectedTenant.phone) {
+      const name = selectedTenant.name.split(' ')[0]
+      let msg = ''
+      if (isPartialPay && daysPaid && stayEndDate) {
+        msg = `Hi ${name},\n\nReceipt - Hosteloops Hostel\n` +
+          `----------------------------\n` +
+          `Bed: ${selectedTenant.bed_id}\n` +
+          `Amount paid: ₹${Number(amount).toLocaleString('en-IN')}\n` +
+          `Days: ${daysPaid} days\n` +
+          `Valid from: ${collectDate}\n` +
+          `Valid till: ${stayEndDate}\n` +
+          `----------------------------\n` +
+          `Thank you! — Hosteloops`
+      } else {
+        msg = `Hi ${name},\n\nReceipt - Hosteloops Hostel\n` +
+          `----------------------------\n` +
+          `Bed: ${selectedTenant.bed_id}\n` +
+          `Amount paid: ₹${Number(amount).toLocaleString('en-IN')}\n` +
+          `Month: ${month}\n` +
+          `Date: ${collectDate}\n` +
+          `----------------------------\n` +
+          `Thank you! — Hosteloops`
+      }
+      const waUrl = `https://wa.me/91${selectedTenant.phone}?text=${encodeURIComponent(msg)}`
+      window.open(waUrl, '_blank')
+    }
+
     showToast(`Rent collected from ${selectedTenant.name}`)
     setShowCollect(false)
     load()
@@ -161,10 +223,18 @@ export default function Tenants({ propertyId, isStaff = false }) {
   const totalRentDue = tenants.filter(t => getRentStatus(t) === 'due').reduce((a, t) => a + t.rent, 0)
 
   const filteredTenants = tenants.filter(t => {
-    if (filterStatus === 'paid') return getRentStatus(t) === 'paid'
-    if (filterStatus === 'due') return getRentStatus(t) === 'due'
-    if (filterStatus === 'upcoming') return getRentStatus(t) === 'upcoming'
-    return true
+    const matchesStatus = filterStatus === 'paid' ? getRentStatus(t) === 'paid'
+      : filterStatus === 'due' ? getRentStatus(t) === 'due'
+      : filterStatus === 'upcoming' ? getRentStatus(t) === 'upcoming'
+      : true
+    const q = search.toLowerCase()
+    const matchesSearch = !q || t.name.toLowerCase().includes(q) || (t.bed_id || '').toLowerCase().includes(q) || (t.phone || '').includes(q)
+    return matchesStatus && matchesSearch
+  })
+
+  const filteredVacated = vacatedTenants.filter(t => {
+    const q = search.toLowerCase()
+    return !q || t.name.toLowerCase().includes(q) || (t.bed_id || '').toLowerCase().includes(q) || (t.phone || '').includes(q)
   })
 
   return (
@@ -179,7 +249,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
       {/* Main tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
         {[['active', `Active (${tenants.length})`], ['vacated', `Vacated history (${vacatedTenants.length})`]].map(([val, label]) => (
-          <button key={val} onClick={() => setTab(val)}
+          <button key={val} onClick={() => { setTab(val); setSearch('') }}
             style={{
               padding: '8px 16px', fontSize: 13, fontWeight: 500,
               background: 'none', border: 'none', cursor: 'pointer',
@@ -190,6 +260,28 @@ export default function Tenants({ propertyId, isStaff = false }) {
             {label}
           </button>
         ))}
+      </div>
+
+      {/* Search bar — works across both tabs */}
+      <div style={{ position: 'relative', marginBottom: 16 }}>
+        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', fontSize: 15, pointerEvents: 'none' }}>🔍</span>
+        <input
+          placeholder="Search by name, bed or phone..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            width: '100%', padding: '9px 12px 9px 34px',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'var(--text)'
+          }}
+        />
+        {search && (
+          <button onClick={() => setSearch('')}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>
+            ×
+          </button>
+        )}
       </div>
 
       {/* ACTIVE TENANTS TAB */}
@@ -247,12 +339,25 @@ export default function Tenants({ propertyId, isStaff = false }) {
                               const status = getRentStatus(t)
                               const payment = getPayment(t.id)
                               const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
+                              const daysLeft = getDaysRemaining(t.id)
+
                               if (status === 'paid') return (
                                 <div>
                                   <span className="badge badge-green">Paid</span>
                                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
                                     {payment?.paid_date} · {fmt(payment?.amount)}
                                   </div>
+                                  {payment?.stay_end_date && (
+                                    <div style={{ marginTop: 4 }}>
+                                      {daysLeft < 0 ? (
+                                        <span className="badge badge-red" style={{ fontSize: 10 }}>Stay ended {Math.abs(daysLeft)}d ago</span>
+                                      ) : daysLeft <= 3 ? (
+                                        <span className="badge badge-red" style={{ fontSize: 10 }}>⚠ {daysLeft === 0 ? 'Ends today!' : `${daysLeft}d left`}</span>
+                                      ) : (
+                                        <span className="badge badge-amber" style={{ fontSize: 10 }}>{daysLeft}d left · till {payment.stay_end_date}</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )
                               if (status === 'upcoming') return (
@@ -303,7 +408,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
       {/* VACATED HISTORY TAB */}
       {tab === 'vacated' && (
         <div className="card">
-          {vacatedTenants.length === 0 ? (
+          {filteredVacated.length === 0 ? (
             <div className="empty">No vacated tenants yet</div>
           ) : (
             <div className="table-wrap">
@@ -312,7 +417,7 @@ export default function Tenants({ propertyId, isStaff = false }) {
                   <tr><th>Name</th><th>Bed</th><th>Phone</th><th>Move-in</th><th>Vacated on</th><th>Rent</th></tr>
                 </thead>
                 <tbody>
-                  {vacatedTenants.map(t => (
+                  {filteredVacated.map(t => (
                     <tr key={t.id}>
                       <td>
                         <div style={{ fontWeight: 500 }}>{t.name}</div>
@@ -350,14 +455,46 @@ export default function Tenants({ propertyId, isStaff = false }) {
             <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
               <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span style={{ fontWeight: 500 }}>{selectedTenant.name}</span></div>
               <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Bed</span><span>{selectedTenant.bed_id}</span></div>
-              <div className="row-between"><span style={{ color: 'var(--text-secondary)' }}>Month</span><span style={{ fontWeight: 500 }}>{month}</span></div>
+              <div className="row-between"><span style={{ color: 'var(--text-secondary)' }}>Monthly rent</span><span style={{ fontWeight: 600 }}>₹{Number(selectedTenant.rent).toLocaleString('en-IN')}</span></div>
             </div>
             <div className="form-grid">
               <div className="form-group"><label>Amount (₹)</label><input type="number" value={collectAmount} onChange={e => setCollectAmount(e.target.value)} /></div>
               <div className="form-group"><label>Payment date</label><input type="date" value={collectDate} onChange={e => setCollectDate(e.target.value)} /></div>
             </div>
+
+            {/* Partial pay toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+              <input type="checkbox" id="partial-toggle" checked={isPartialPay}
+                onChange={e => { setIsPartialPay(e.target.checked); if (!e.target.checked) setDaysPaid('') }}
+                style={{ width: 16, height: 16, cursor: 'pointer' }} />
+              <label htmlFor="partial-toggle" style={{ fontSize: 13, cursor: 'pointer', color: 'var(--text)' }}>
+                Paying for specific days only
+              </label>
+            </div>
+
+            {isPartialPay && (
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Number of days paid</label>
+                  <input type="number" placeholder="e.g. 15" value={daysPaid}
+                    onChange={e => setDaysPaid(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Stay ends on</label>
+                  <input type="text" readOnly value={(() => {
+                    if (!daysPaid || !collectDate) return '—'
+                    const d = new Date(collectDate)
+                    d.setDate(d.getDate() + parseInt(daysPaid) - 1)
+                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                  })()} style={{ background: 'var(--bg)', color: 'var(--green)', fontWeight: 600 }} />
+                </div>
+              </div>
+            )}
+
             <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 6 }}>
-              Auto-adds to Income & expenses.
+              {isPartialPay && daysPaid
+                ? `Will alert you when ${selectedTenant.name.split(' ')[0]}'s ${daysPaid} days are ending.`
+                : 'Auto-adds to Income & expenses.'}
             </div>
           </div>
         </Modal>
