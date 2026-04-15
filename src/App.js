@@ -14,6 +14,7 @@ import './App.css'
 function AppContent() {
   const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner } = useAuth()
   const [page, setPage] = useState('dashboard')
+  const [tenantFilter, setTenantFilter] = useState('all')
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
 
@@ -118,7 +119,7 @@ function AppContent() {
             {navPages.map(p => (
               <button key={p.id}
                 className={`nav-btn ${page === p.id ? 'active' : ''}`}
-                onClick={() => { setPage(p.id); setShowPropertyMenu(false); setShowUserMenu(false) }}>
+                onClick={() => { setPage(p.id); setTenantFilter('all'); setShowPropertyMenu(false); setShowUserMenu(false) }}>
                 {p.label}
               </button>
             ))}
@@ -173,9 +174,9 @@ function AppContent() {
           !activeProperty
             ? <div className="empty" style={{ marginTop: 60 }}>Select a property to continue</div>
             : <>
-                {page === 'dashboard' && <Dashboard onNavigate={setPage} propertyId={activeProperty.id} />}
+                {page === 'dashboard' && <Dashboard onNavigate={(p, filter) => { setPage(p); if (filter) setTenantFilter(filter); else setTenantFilter('all') }} propertyId={activeProperty.id} />}
                 {page === 'beds' && <BedMap propertyId={activeProperty.id} isStaff={isStaff} />}
-                {page === 'tenants' && <Tenants propertyId={activeProperty.id} isStaff={isStaff} />}
+                {page === 'tenants' && <Tenants propertyId={activeProperty.id} isStaff={isStaff} initialFilter={tenantFilter} />}
                 {page === 'finance' && <Finance propertyId={activeProperty.id} isStaff={isStaff} />}
                 {page === 'reports' && !isStaff && <Reports propertyId={activeProperty.id} />}
               </>
