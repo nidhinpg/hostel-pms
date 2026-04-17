@@ -169,8 +169,6 @@ export default function BedMap({ propertyId, isStaff = false }) {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {!isStaff && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
                 {!isStaff && selected.status !== 'vacant' && <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>}
-                {!isStaff && selected.status !== 'maintenance' && <button className="btn" onClick={() => handleSetStatus('maintenance')}>Mark maintenance</button>}
-                {!isStaff && selected.status === 'maintenance' && <button className="btn btn-primary" onClick={() => handleSetStatus('vacant')}>Back to vacant</button>}
                 <button className="btn" onClick={() => setSelected(null)}>Close</button>
               </div>
             }>
