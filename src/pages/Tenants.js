@@ -482,9 +482,9 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
                   <label>Stay ends on</label>
                   <input type="text" readOnly value={(() => {
                    if (!daysPaid) return '—'
-              const base = selectedTenant.movein_date ? new Date(selectedTenant.movein_date) : new Date(collectDate)
-              base.setDate(base.getDate() + parseInt(daysPaid) - 1)
-              return `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`
+            const base = selectedTenant.movein_date ? new Date(selectedTenant.movein_date) : new Date(collectDate)
+            base.setDate(base.getDate() + parseInt(daysPaid) - 1)
+            return `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`
                   })()} style={{ background: 'var(--bg)', color: 'var(--green)', fontWeight: 600 }} />
                 </div>
               </div>
