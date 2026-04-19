@@ -104,12 +104,11 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
     // Calculate stay_end_date if days_paid is entered
     let stayEndDate = null
-    if (isPartialPay && daysPaid) {
-      const d = new Date(collectDate)
-      d.setDate(d.getDate() + parseInt(daysPaid) - 1)
-      stayEndDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-    }
-
+     if (isPartialPay && daysPaid) {
+      const baseDate = selectedTenant.movein_date ? new Date(selectedTenant.movein_date) : new Date(collectDate)
+      baseDate.setDate(baseDate.getDate() + parseInt(daysPaid) - 1)
+      stayEndDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth()+1).padStart(2,'0')}-${String(baseDate.getDate()).padStart(2,'0')}`
+}
     const { error } = await supabase.from('rent_payments').upsert({
       tenant_id: selectedTenant.id, month, amount,
       paid_date: collectDate, property_id: propertyId,
