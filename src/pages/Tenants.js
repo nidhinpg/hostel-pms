@@ -25,11 +25,12 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [collectAmount, setCollectAmount] = useState('')
   const [collectDate, setCollectDate] = useState(currentDate())
+  const [vacateDate, setVacateDate] = useState(currentDate())
   const [daysPaid, setDaysPaid] = useState('')
   const [isPartialPay, setIsPartialPay] = useState(false)
-  const [vacateDate, setVacateDate] = useState(currentDate())
+  const [receiptData, setReceiptData] = useState(null)
   const [toast, setToast] = useState('')
-  const [tab, setTab] = useState('active') // active | vacated
+  const [tab, setTab] = useState('active')
   const [filterStatus, setFilterStatus] = useState(initialFilter)
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({
@@ -39,7 +40,6 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
   const month = currentMonth()
 
-  // Sync filter when navigating from dashboard
   useEffect(() => { setFilterStatus(initialFilter) }, [initialFilter])
 
   const load = useCallback(async () => {
@@ -62,7 +62,6 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const isPaid = id => rentPayments.some(r => r.tenant_id === id)
   const getPayment = id => rentPayments.find(r => r.tenant_id === id)
 
-  // Rent is due only after the tenant's movein day has passed this month
   const getRentStatus = (tenant) => {
     if (isPaid(tenant.id)) return 'paid'
     const today = new Date()
@@ -73,7 +72,6 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   }
   const isDue = (tenant) => getRentStatus(tenant) === 'due'
 
-  // Days remaining for partial pay tenants
   const getDaysRemaining = (tenantId) => {
     const payment = getPayment(tenantId)
     if (!payment || !payment.stay_end_date) return null
@@ -102,13 +100,13 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     if (!collectAmount) { showToast('Enter amount'); return }
     const amount = parseInt(collectAmount)
 
-    // Calculate stay_end_date if days_paid is entered
     let stayEndDate = null
-     if (isPartialPay && daysPaid) {
+    if (isPartialPay && daysPaid) {
       const baseDate = selectedTenant.movein_date ? new Date(selectedTenant.movein_date) : new Date(collectDate)
       baseDate.setDate(baseDate.getDate() + parseInt(daysPaid) - 1)
-      stayEndDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth()+1).padStart(2,'0')}-${String(baseDate.getDate()).padStart(2,'0')}`
-}
+      stayEndDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`
+    }
+
     const { error } = await supabase.from('rent_payments').upsert({
       tenant_id: selectedTenant.id, month, amount,
       paid_date: collectDate, property_id: propertyId,
@@ -125,36 +123,25 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
       date: collectDate, type: 'income', category: 'Rent',
       description: desc, amount, property_id: propertyId
     })
+
     if (selectedTenant.status === 'due') {
       await supabase.from('tenants').update({ status: 'active' }).eq('id', selectedTenant.id)
     }
 
-    // Build WhatsApp receipt message
+    // Show receipt popup instead of auto-opening WhatsApp
     if (selectedTenant.phone) {
-      const name = selectedTenant.name.split(' ')[0]
-      let msg = ''
-      if (isPartialPay && daysPaid && stayEndDate) {
-        msg = `Hi ${name},\n\nReceipt - Hosteloops Hostel\n` +
-          `----------------------------\n` +
-          `Bed: ${selectedTenant.bed_id}\n` +
-          `Amount paid: ₹${Number(amount).toLocaleString('en-IN')}\n` +
-          `Days: ${daysPaid} days\n` +
-          `Valid from: ${selectedTenant.movein_date}\\n` +
-          `Valid till: ${stayEndDate}\n` +
-          `----------------------------\n` +
-          `Thank you! — Hosteloops`
-      } else {
-        msg = `Hi ${name},\n\nReceipt - Hosteloops Hostel\n` +
-          `----------------------------\n` +
-          `Bed: ${selectedTenant.bed_id}\n` +
-          `Amount paid: ₹${Number(amount).toLocaleString('en-IN')}\n` +
-          `Month: ${month}\n` +
-          `Date: ${collectDate}\n` +
-          `----------------------------\n` +
-          `Thank you! — Hosteloops`
-      }
-      const waUrl = `https://wa.me/91${selectedTenant.phone}?text=${encodeURIComponent(msg)}`
-      window.open(waUrl, '_blank')
+      setReceiptData({
+        phone: selectedTenant.phone,
+        name: selectedTenant.name,
+        bed: selectedTenant.bed_id,
+        amount,
+        date: collectDate,
+        month,
+        isPartial: isPartialPay && !!daysPaid,
+        days: daysPaid,
+        from: selectedTenant.movein_date,
+        till: stayEndDate
+      })
     }
 
     showToast(`Rent collected from ${selectedTenant.name}`)
@@ -163,15 +150,11 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   }
 
   const handleVacate = async () => {
-    // Mark tenant as vacated with vacate date
     await supabase.from('tenants').update({
       status: 'vacated',
       vacate_date: vacateDate
     }).eq('id', selectedTenant.id)
-
-    // Free up the bed
     await supabase.from('beds').update({ status: 'vacant' }).eq('id', selectedTenant.bed_id).eq('property_id', propertyId)
-
     showToast(`${selectedTenant.name} vacated successfully`)
     setShowVacate(false)
     load()
@@ -212,6 +195,16 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     return `https://wa.me/91${tenant.phone}?text=${encodeURIComponent(msg)}`
   }
 
+  const buildReceiptUrl = (r) => {
+    let msg = ''
+    if (r.isPartial) {
+      msg = `Hi ${r.name.split(' ')[0]},\n\nReceipt - Hosteloops Hostel\n----------------------------\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nDays: ${r.days} days\nValid from: ${r.from}\nValid till: ${r.till}\n----------------------------\nThank you! — Hosteloops`
+    } else {
+      msg = `Hi ${r.name.split(' ')[0]},\n\nReceipt - Hosteloops Hostel\n----------------------------\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nMonth: ${r.month}\nDate: ${r.date}\n----------------------------\nThank you! — Hosteloops`
+    }
+    return `https://wa.me/91${r.phone}?text=${encodeURIComponent(msg)}`
+  }
+
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
   if (loading) return <div className="loading">Loading tenants...</div>
@@ -246,9 +239,9 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
       </div>
 
       {/* Main tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
         {[['active', `Active (${tenants.length})`], ['vacated', `Vacated history (${vacatedTenants.length})`]].map(([val, label]) => (
-          <button key={val} onClick={() => { setTab(val); setSearch('') }}
+          <button key={val} onClick={() => setTab(val)}
             style={{
               padding: '8px 16px', fontSize: 13, fontWeight: 500,
               background: 'none', border: 'none', cursor: 'pointer',
@@ -261,25 +254,18 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
         ))}
       </div>
 
-      {/* Search bar — works across both tabs */}
+      {/* Search bar */}
       <div style={{ position: 'relative', marginBottom: 16 }}>
         <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', fontSize: 15, pointerEvents: 'none' }}>🔍</span>
         <input
           placeholder="Search by name, bed or phone..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%', padding: '9px 12px 9px 34px',
-            border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-            fontSize: 13, fontFamily: 'inherit',
-            background: 'var(--surface)', color: 'var(--text)'
-          }}
+          style={{ width: '100%', padding: '9px 12px 9px 34px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 13, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)' }}
         />
         {search && (
           <button onClick={() => setSearch('')}
-            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>
-            ×
-          </button>
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>×</button>
         )}
       </div>
 
@@ -294,12 +280,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
           </div>
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-            {[
-              ['all', 'All'],
-              ['due', 'Due'],
-              ['upcoming', 'Upcoming'],
-              ['paid', 'Paid']
-            ].map(([val, label]) => (
+            {[['all', 'All'], ['due', 'Due'], ['upcoming', 'Upcoming'], ['paid', 'Paid']].map(([val, label]) => (
               <button key={val} onClick={() => setFilterStatus(val)}
                 className={`btn ${filterStatus === val ? 'btn-primary' : ''}`}
                 style={{ fontSize: 12, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -318,61 +299,49 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
             {filteredTenants.length === 0 ? <div className="empty">No tenants found</div> : (
               <div className="table-wrap">
                 <table>
-                  <thead>
-                    <tr><th>Name</th><th>Bed</th><th>Rent</th><th>{month}</th><th>Actions</th></tr>
-                  </thead>
+                  <thead><tr><th>Name</th><th>Bed</th><th>Rent</th><th>{month}</th><th>Actions</th></tr></thead>
                   <tbody>
                     {filteredTenants.map(t => {
-                      const paid = isPaid(t.id)
+                      const status = getRentStatus(t)
                       const payment = getPayment(t.id)
+                      const daysLeft = getDaysRemaining(t.id)
+                      const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
                       return (
                         <tr key={t.id}>
-                          <td>
-                            <div style={{ fontWeight: 500 }}>{t.name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.phone}</div>
-                          </td>
+                          <td><div style={{ fontWeight: 500 }}>{t.name}</div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.phone}</div></td>
                           <td><span className="badge badge-blue">{t.bed_id}</span></td>
                           <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
                           <td>
-                            {(() => {
-                              const status = getRentStatus(t)
-                              const payment = getPayment(t.id)
-                              const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
-                              const daysLeft = getDaysRemaining(t.id)
-
-                              if (status === 'paid') return (
-                                <div>
-                                  <span className="badge badge-green">Paid</span>
-                                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                                    {payment?.paid_date} · {fmt(payment?.amount)}
+                            {status === 'paid' ? (
+                              <div>
+                                <span className="badge badge-green">Paid</span>
+                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                                  {payment?.paid_date} · {fmt(payment?.amount)}
+                                </div>
+                                {payment?.stay_end_date && (
+                                  <div style={{ marginTop: 4 }}>
+                                    {daysLeft < 0 ? (
+                                      <span className="badge badge-red" style={{ fontSize: 10 }}>Stay ended {Math.abs(daysLeft)}d ago</span>
+                                    ) : daysLeft <= 3 ? (
+                                      <span className="badge badge-red" style={{ fontSize: 10 }}>⚠ {daysLeft === 0 ? 'Ends today!' : `${daysLeft}d left`}</span>
+                                    ) : (
+                                      <span className="badge badge-amber" style={{ fontSize: 10 }}>{daysLeft}d left · till {payment.stay_end_date}</span>
+                                    )}
                                   </div>
-                                  {payment?.stay_end_date && (
-                                    <div style={{ marginTop: 4 }}>
-                                      {daysLeft < 0 ? (
-                                        <span className="badge badge-red" style={{ fontSize: 10 }}>Stay ended {Math.abs(daysLeft)}d ago</span>
-                                      ) : daysLeft <= 3 ? (
-                                        <span className="badge badge-red" style={{ fontSize: 10 }}>⚠ {daysLeft === 0 ? 'Ends today!' : `${daysLeft}d left`}</span>
-                                      ) : (
-                                        <span className="badge badge-amber" style={{ fontSize: 10 }}>{daysLeft}d left · till {payment.stay_end_date}</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                              if (status === 'upcoming') return (
-                                <div>
-                                  <span className="badge badge-amber">Due on {joinDay}th</span>
-                                </div>
-                              )
-                              return <span className="badge badge-red">Due</span>
-                            })()}
+                                )}
+                              </div>
+                            ) : status === 'upcoming' ? (
+                              <span className="badge badge-amber">Due on {joinDay}th</span>
+                            ) : (
+                              <span className="badge badge-red">Due</span>
+                            )}
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {getRentStatus(t) === 'paid' ? (
+                              {status === 'paid' ? (
                                 <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
                                   onClick={() => handleUndoPayment(t)}>Undo</button>
-                              ) : getRentStatus(t) === 'due' ? (
+                              ) : status === 'due' ? (
                                 <>
                                   <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }}
                                     onClick={() => openCollect(t)}>Collect rent</button>
@@ -412,25 +381,15 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
           ) : (
             <div className="table-wrap">
               <table>
-                <thead>
-                  <tr><th>Name</th><th>Bed</th><th>Phone</th><th>Move-in</th><th>Vacated on</th><th>Rent</th></tr>
-                </thead>
+                <thead><tr><th>Name</th><th>Bed</th><th>Phone</th><th>Move-in</th><th>Vacated on</th><th>Rent</th></tr></thead>
                 <tbody>
                   {filteredVacated.map(t => (
                     <tr key={t.id}>
-                      <td>
-                        <div style={{ fontWeight: 500 }}>{t.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.aadhar}</div>
-                      </td>
+                      <td><div style={{ fontWeight: 500 }}>{t.name}</div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.aadhar}</div></td>
                       <td><span className="badge badge-blue">{t.bed_id}</span></td>
                       <td style={{ color: 'var(--text-secondary)' }}>{t.phone || '—'}</td>
                       <td style={{ color: 'var(--text-secondary)' }}>{t.movein_date}</td>
-                      <td>
-                        {t.vacate_date
-                          ? <span className="badge badge-red">{t.vacate_date}</span>
-                          : <span style={{ color: 'var(--text-tertiary)' }}>—</span>
-                        }
-                      </td>
+                      <td>{t.vacate_date ? <span className="badge badge-red">{t.vacate_date}</span> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}</td>
                       <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
                     </tr>
                   ))}
@@ -460,8 +419,6 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
               <div className="form-group"><label>Amount (₹)</label><input type="number" value={collectAmount} onChange={e => setCollectAmount(e.target.value)} /></div>
               <div className="form-group"><label>Payment date</label><input type="date" value={collectDate} onChange={e => setCollectDate(e.target.value)} /></div>
             </div>
-
-            {/* Partial pay toggle */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
               <input type="checkbox" id="partial-toggle" checked={isPartialPay}
                 onChange={e => { setIsPartialPay(e.target.checked); if (!e.target.checked) setDaysPaid('') }}
@@ -470,29 +427,26 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
                 Paying for specific days only
               </label>
             </div>
-
             {isPartialPay && (
               <div className="form-grid">
                 <div className="form-group">
                   <label>Number of days paid</label>
-                  <input type="number" placeholder="e.g. 15" value={daysPaid}
-                    onChange={e => setDaysPaid(e.target.value)} />
+                  <input type="number" placeholder="e.g. 15" value={daysPaid} onChange={e => setDaysPaid(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label>Stay ends on</label>
                   <input type="text" readOnly value={(() => {
-                   if (!daysPaid) return '—'
-            const base = selectedTenant.movein_date ? new Date(selectedTenant.movein_date) : new Date(collectDate)
-            base.setDate(base.getDate() + parseInt(daysPaid) - 1)
-            return `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`
+                    if (!daysPaid) return '—'
+                    const base = selectedTenant.movein_date ? new Date(selectedTenant.movein_date) : new Date(collectDate)
+                    base.setDate(base.getDate() + parseInt(daysPaid) - 1)
+                    return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
                   })()} style={{ background: 'var(--bg)', color: 'var(--green)', fontWeight: 600 }} />
                 </div>
               </div>
             )}
-
             <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 6 }}>
               {isPartialPay && daysPaid
-                ? `Will alert you when ${selectedTenant.name.split(' ')[0]}'s ${daysPaid} days are ending.`
+                ? `Will alert when ${selectedTenant.name.split(' ')[0]}'s ${daysPaid} days are ending.`
                 : 'Auto-adds to Income & expenses.'}
             </div>
           </div>
@@ -541,8 +495,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
             </div>
             <div className="form-grid">
               <div className="form-group"><label>Aadhaar no.</label><input placeholder="XXXX XXXX XXXX" value={form.aadhar} onChange={f('aadhar')} /></div>
-              <div className="form-group">
-                <label>Bed *</label>
+              <div className="form-group"><label>Bed *</label>
                 <select value={form.bed_id} onChange={f('bed_id')}>
                   <option value="">Select bed</option>
                   {vacantBeds.map(b => <option key={b.id} value={b.id}>{b.id}</option>)}
@@ -558,6 +511,38 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* WHATSAPP RECEIPT POPUP */}
+      {receiptData && receiptData.phone && (
+        <div style={{
+          position: 'fixed', bottom: 80, right: 24, zIndex: 200,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)', padding: '14px 16px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', maxWidth: 280
+        }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>✅ Rent collected!</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            Send receipt to {receiptData.name.split(' ')[0]}?
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10, lineHeight: 1.6 }}>
+            {receiptData.isPartial
+              ? `₹${Number(receiptData.amount).toLocaleString('en-IN')} · ${receiptData.days} days · till ${receiptData.till}`
+              : `₹${Number(receiptData.amount).toLocaleString('en-IN')} · ${receiptData.month}`
+            }
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" style={{ fontSize: 12, flex: 1 }}
+              onClick={() => setReceiptData(null)}>Skip</button>
+            <a href={buildReceiptUrl(receiptData)}
+              target="_blank" rel="noreferrer"
+              className="btn btn-primary"
+              style={{ fontSize: 12, flex: 1, textDecoration: 'none', textAlign: 'center' }}
+              onClick={() => setReceiptData(null)}>
+              WhatsApp ↗
+            </a>
+          </div>
+        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}
