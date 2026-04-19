@@ -197,10 +197,9 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
   const buildReceiptUrl = (r) => {
     let msg = ''
-    if (r.isPartial) {
-      msg = `Hi ${r.name.split(' ')[0]},\n\nReceipt - Hosteloops Hostel\n----------------------------\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nDays: ${r.days} days\nValid from: ${r.from}\nValid till: ${r.till}\n----------------------------\nThank you! — Hosteloops`
+    if (r.isPartial) {msg = `Hi ${r.name.split(' ')[0]},\nReceipt - Hosteloops Hostel\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nDays: ${r.days} days\nValid from: ${r.from}\nValid till: ${r.till}\nThank you! — Hosteloops`
     } else {
-      msg = `Hi ${r.name.split(' ')[0]},\n\nReceipt - Hosteloops Hostel\n----------------------------\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nMonth: ${r.month}\nDate: ${r.date}\n----------------------------\nThank you! — Hosteloops`
+msg = `Hi ${r.name.split(' ')[0]},\nReceipt - Hosteloops Hostel\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nMonth: ${r.month}\nDate: ${r.date}\nThank you! — Hosteloops`
     }
     return `https://wa.me/91${r.phone}?text=${encodeURIComponent(msg)}`
   }
