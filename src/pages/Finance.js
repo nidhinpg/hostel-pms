@@ -4,7 +4,7 @@ import Modal from '../components/Modal'
 
 const fmt = n => '₹' + Number(n).toLocaleString('en-IN')
 const INCOME_CATEGORIES = ['Rent', 'Daily rent', 'Advance', 'Food', 'Other income']
-const EXPENSE_CATEGORIES = ['Electricity', 'Water', 'Maintenance', 'Groceries', 'Salary', 'Internet', 'Other']
+const EXPENSE_CATEGORIES = ['Electricity', 'Water', 'Maintenance', 'Groceries', 'Salary', 'Internet', 'Petrol', 'Other']
 const ALL_CATEGORIES = ['All', ...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES]
 
 function currentMonth() {
