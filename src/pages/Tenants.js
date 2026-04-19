@@ -481,10 +481,10 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
                 <div className="form-group">
                   <label>Stay ends on</label>
                   <input type="text" readOnly value={(() => {
-                    if (!daysPaid || !collectDate) return '—'
-                    const d = new Date(collectDate)
-                    d.setDate(d.getDate() + parseInt(daysPaid) - 1)
-                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                   if (!daysPaid) return '—'
+              const base = selectedTenant.movein_date ? new Date(selectedTenant.movein_date) : new Date(collectDate)
+              base.setDate(base.getDate() + parseInt(daysPaid) - 1)
+              return `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`
                   })()} style={{ background: 'var(--bg)', color: 'var(--green)', fontWeight: 600 }} />
                 </div>
               </div>
