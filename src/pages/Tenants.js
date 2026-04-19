@@ -307,8 +307,11 @@ msg = `Hi ${r.name.split(' ')[0]},\nReceipt - Hosteloops Hostel\nBed: ${r.bed}\n
                       const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
                       return (
                         <tr key={t.id}>
-                          <td><div style={{ fontWeight: 500 }}>{t.name}</div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.phone}</div></td>
-                          <td><span className="badge badge-blue">{t.bed_id}</span></td>
+                          <td>
+  <div style={{ fontWeight: 500 }}>{t.name}</div>
+  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.phone}</div>
+  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Check-in: {t.movein_date}</div>
+</td>                          <td><span className="badge badge-blue">{t.bed_id}</span></td>
                           <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
                           <td>
                             {status === 'paid' ? (
