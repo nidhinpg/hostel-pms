@@ -139,7 +139,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
           `Bed: ${selectedTenant.bed_id}\n` +
           `Amount paid: ₹${Number(amount).toLocaleString('en-IN')}\n` +
           `Days: ${daysPaid} days\n` +
-          `Valid from: ${collectDate}\n` +
+          `Valid from: ${selectedTenant.movein_date}\\n` +
           `Valid till: ${stayEndDate}\n` +
           `----------------------------\n` +
           `Thank you! — Hosteloops`
