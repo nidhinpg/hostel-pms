@@ -90,7 +90,6 @@ export default function BedMap({ propertyId, isStaff = false }) {
       <div className="legend">
         <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--green)' }} />{occupied} Occupied</div>
         <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--border-strong)' }} />{vacant} Vacant</div>
-        <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--amber)' }} />{maintenance} Maintenance</div>
       </div>
 
       {STRUCTURE.map(({ floor, rooms }) => {
