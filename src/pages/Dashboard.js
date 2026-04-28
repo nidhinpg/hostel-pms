@@ -140,7 +140,7 @@ export default function Dashboard({ onNavigate, propertyId }) {
             <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 2 }}>Due ↗</div>
           </div>
           <div onClick={() => onNavigate('tenants', 'upcoming')} style={{ flex: 1, minWidth: 80, background: 'var(--amber-bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center', cursor: 'pointer' }}>
-            <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--amber)' }}>{stats.totalTenants - paidCount - dueTenants.length}</div>
+           <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--amber)' }}>{Math.max(0, upcomingCount)}</div>
             <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Upcoming ↗</div>
           </div>
           <div style={{ flex: 1, minWidth: 80, background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
