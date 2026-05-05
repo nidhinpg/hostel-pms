@@ -45,7 +45,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const load = useCallback(async () => {
     const [t, vacated, b, rp] = await Promise.all([
       supabase.from('tenants').select('*').eq('property_id', propertyId).neq('status', 'vacated').order('name'),
-      supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'vacated').order('updated_at', { ascending: false }),
+      supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'vacated').order('vacate_date', { ascending: false, nullsFirst: false }),
       supabase.from('beds').select('id').eq('property_id', propertyId).eq('status', 'vacant').order('id'),
       supabase.from('rent_payments').select('tenant_id, amount, paid_date, stay_end_date, days_paid').eq('property_id', propertyId).eq('month', month),
     ])
