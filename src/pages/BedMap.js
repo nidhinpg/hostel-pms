@@ -54,10 +54,11 @@ export default function BedMap({ propertyId, isStaff = false }) {
     const t = getTenant(selected.id)
     if (t) { showToast('Cannot delete — bed has active tenant'); return }
     if (!window.confirm(`Delete bed ${selected.id}?`)) return
-    await supabase.from('beds').delete().eq('id', selected.id).eq('property_id', propertyId)
-    showToast('Bed deleted')
-    setSelected(null)
-    load()
+    const { error } = await supabase.from('beds').delete().eq('id', selected.id).eq('property_id', propertyId)
+if (error) { showToast('Error: could not delete bed'); return }
+showToast('Bed deleted')
+setSelected(null)
+load()
   }
 
   const handleAddBed = async () => {
