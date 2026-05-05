@@ -67,7 +67,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     const today = new Date()
     const todayDay = today.getDate()
     const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
-    if (todayDay >= joinDay) return 'due'
+    if (todayDay >= joinDay - 1) return 'due'
     return 'upcoming'
   }
   const isDue = (tenant) => getRentStatus(tenant) === 'due'
