@@ -21,7 +21,7 @@ function isTenantDue(tenant, paidIds) {
   if (paidIds.includes(tenant.id)) return false
   const todayDay = new Date().getDate()
   const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
-  return todayDay >= joinDay
+  return todayDay >= joinDay - 1  // show 1 day before due date
 }
 
 export default function Dashboard({ onNavigate, propertyId }) {
