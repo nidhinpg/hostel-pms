@@ -8,9 +8,15 @@ const STRUCTURE = [
   { floor: 'Floor 3', rooms: ['301', '302', '303', '304'] }
 ]
 
+function currentMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
 export default function BedMap({ propertyId, isStaff = false }) {
   const [beds, setBeds] = useState([])
   const [tenants, setTenants] = useState([])
+  const [rentPayments, setRentPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -18,12 +24,14 @@ export default function BedMap({ propertyId, isStaff = false }) {
   const [toast, setToast] = useState('')
 
   const load = useCallback(async () => {
-    const [b, t] = await Promise.all([
+    const [b, t, rp] = await Promise.all([
       supabase.from('beds').select('*').eq('property_id', propertyId).order('id'),
       supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'active'),
+      supabase.from('rent_payments').select('tenant_id').eq('property_id', propertyId).eq('month', currentMonth()),
     ])
     setBeds(b.data || [])
     setTenants(t.data || [])
+    setRentPayments(rp.data || [])
     setLoading(false)
   }, [propertyId])
 
@@ -31,6 +39,14 @@ export default function BedMap({ propertyId, isStaff = false }) {
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 2500) }
   const getTenant = bedId => tenants.find(t => t.bed_id === bedId)
+
+  const isPaid = (tenantId) => rentPayments.some(r => r.tenant_id === tenantId)
+  const isDue = (tenant) => {
+    if (!tenant || isPaid(tenant.id)) return false
+    const todayDay = new Date().getDate()
+    const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
+    return todayDay >= joinDay - 1
+  }
 
   const bedsByRoom = beds.reduce((acc, bed) => {
     const room = bed.id.replace(/[A-Z]+$/, '')
@@ -55,10 +71,13 @@ export default function BedMap({ propertyId, isStaff = false }) {
     if (t) { showToast('Cannot delete — bed has active tenant'); return }
     if (!window.confirm(`Delete bed ${selected.id}?`)) return
     const { error } = await supabase.from('beds').delete().eq('id', selected.id).eq('property_id', propertyId)
-if (error) { showToast('Error: could not delete bed'); return }
-showToast('Bed deleted')
-setSelected(null)
-load()
+    if (error) {
+      showToast(error.code === '23503' ? 'Clear tenant history first' : 'Error: could not delete bed')
+      return
+    }
+    showToast('Bed deleted')
+    setSelected(null)
+    load()
   }
 
   const handleAddBed = async () => {
@@ -79,7 +98,35 @@ load()
 
   const occupied = beds.filter(b => b.status === 'occupied').length
   const vacant = beds.filter(b => b.status === 'vacant').length
-  const maintenance = beds.filter(b => b.status === 'maintenance').length
+  const dueCount = tenants.filter(t => isDue(t)).length
+
+  const BedCard = ({ bed, style = {} }) => {
+    const t = getTenant(bed.id)
+    const due = isDue(t)
+    return (
+      <div
+        key={bed.id}
+        className={`bed-card ${bed.status}`}
+        onClick={() => setSelected(bed)}
+        style={{ minWidth: 72, flex: '0 0 auto', position: 'relative', ...style }}
+      >
+        <span className="bed-num">{bed.id}</span>
+        <span className="bed-name">
+          {bed.status === 'occupied' && t ? t.name.split(' ')[0] : bed.status === 'maintenance' ? 'Maint.' : 'Free'}
+        </span>
+        {due && (
+          <span style={{
+            position: 'absolute', top: -6, right: -6,
+            background: 'var(--red)', color: 'white',
+            borderRadius: '50%', width: 18, height: 18,
+            fontSize: 10, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+          }}>!</span>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -91,6 +138,12 @@ load()
       <div className="legend">
         <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--green)' }} />{occupied} Occupied</div>
         <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--border-strong)' }} />{vacant} Vacant</div>
+        {dueCount > 0 && (
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--red)', borderRadius: '50%', width: 10, height: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 8, fontWeight: 700 }}>!</div>
+            {dueCount} Rent due
+          </div>
+        )}
       </div>
 
       {STRUCTURE.map(({ floor, rooms }) => {
@@ -120,15 +173,7 @@ load()
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: 12 }}>
-                      {roomBeds.map(bed => {
-                        const t = getTenant(bed.id)
-                        return (
-                          <div key={bed.id} className={`bed-card ${bed.status}`} onClick={() => setSelected(bed)} style={{ minWidth: 72, flex: '0 0 auto' }}>
-                            <span className="bed-num">{bed.id}</span>
-                            <span className="bed-name">{bed.status === 'occupied' && t ? t.name.split(' ')[0] : bed.status === 'maintenance' ? 'Maint.' : 'Free'}</span>
-                          </div>
-                        )
-                      })}
+                      {roomBeds.map(bed => <BedCard key={bed.id} bed={bed} />)}
                     </div>
                   </div>
                 )
@@ -147,15 +192,7 @@ load()
           <div style={{ marginBottom: 28 }}>
             <div style={{ background: 'var(--text-secondary)', color: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', marginBottom: 12, fontSize: 14, fontWeight: 600 }}>Other beds</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {ungrouped.map(bed => {
-                const t = getTenant(bed.id)
-                return (
-                  <div key={bed.id} className={`bed-card ${bed.status}`} onClick={() => setSelected(bed)} style={{ minWidth: 72 }}>
-                    <span className="bed-num">{bed.id}</span>
-                    <span className="bed-name">{bed.status === 'occupied' && t ? t.name.split(' ')[0] : bed.status === 'maintenance' ? 'Maint.' : 'Free'}</span>
-                  </div>
-                )
-              })}
+              {ungrouped.map(bed => <BedCard key={bed.id} bed={bed} />)}
             </div>
           </div>
         )
@@ -163,6 +200,7 @@ load()
 
       {selected && (() => {
         const t = getTenant(selected.id)
+        const due = isDue(t)
         return (
           <Modal title={`Bed ${selected.id}`} onClose={() => setSelected(null)}
             footer={
@@ -179,10 +217,31 @@ load()
               </div>
               {t ? (
                 <>
-                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span style={{ fontWeight: 500 }}>{t.name}</span></div>
-                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--text-secondary)' }}>Phone</span><span>{t.phone}</span></div>
-                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--text-secondary)' }}>Move-in</span><span>{t.movein_date}</span></div>
-                  <div className="row-between" style={{ padding: '8px 0' }}><span style={{ color: 'var(--text-secondary)' }}>Rent</span><span style={{ fontWeight: 600 }}>₹{Number(t.rent).toLocaleString('en-IN')}/mo</span></div>
+                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Tenant</span>
+                    <span style={{ fontWeight: 500 }}>{t.name}</span>
+                  </div>
+                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Phone</span>
+                    <span>{t.phone}</span>
+                  </div>
+                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Move-in</span>
+                    <span>{t.movein_date}</span>
+                  </div>
+                  <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Rent</span>
+                    <span style={{ fontWeight: 600 }}>₹{Number(t.rent).toLocaleString('en-IN')}/mo</span>
+                  </div>
+                  <div className="row-between" style={{ padding: '8px 0' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Rent status</span>
+                    {isPaid(t.id)
+                      ? <span className="badge badge-green">Paid ✓</span>
+                      : due
+                      ? <span className="badge badge-red">Due !</span>
+                      : <span className="badge badge-amber">Upcoming</span>
+                    }
+                  </div>
                 </>
               ) : (
                 <div className="empty" style={{ padding: '20px 0' }}>No tenant assigned</div>
