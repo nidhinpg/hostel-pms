@@ -1,13 +1,57 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
+const DEFAULT_PERMISSIONS = {
+  view_dashboard: true,
+  view_bedmap: true,
+  collect_rent: true,
+  add_expenses: true,
+  add_tenants: false,
+  delete_entries: false,
+  add_beds: false,
+  view_reports: false
+}
+
+const PERMISSION_LABELS = [
+  { key: 'view_dashboard',  label: 'View dashboard',        icon: '📊' },
+  { key: 'view_bedmap',     label: 'View bed map',          icon: '🛏' },
+  { key: 'collect_rent',    label: 'Collect rent',          icon: '💰' },
+  { key: 'add_expenses',    label: 'Add income & expenses', icon: '📝' },
+  { key: 'add_tenants',     label: 'Add/remove tenants',    icon: '👤' },
+  { key: 'add_beds',        label: 'Add/delete beds',       icon: '🛏' },
+  { key: 'view_reports',    label: 'View reports',          icon: '📈' },
+  { key: 'delete_entries',  label: 'Delete entries',        icon: '🗑' },
+]
+
+// Toggle switch component
+function Toggle({ checked, onChange }) {
+  return (
+    <div
+      onClick={onChange}
+      style={{
+        width: 44, height: 24, borderRadius: 12, cursor: 'pointer',
+        background: checked ? 'var(--green)' : 'var(--border-strong)',
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0
+      }}>
+      <div style={{
+        position: 'absolute', top: 3,
+        left: checked ? 23 : 3,
+        width: 18, height: 18, borderRadius: '50%',
+        background: 'white', transition: 'left 0.2s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+      }} />
+    </div>
+  )
+}
+
 export default function StaffManager({ propertyId }) {
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
-  const [step, setStep] = useState('list') // list | create | link
+  const [step, setStep] = useState('list')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [toast, setToast] = useState('')
   const [creating, setCreating] = useState(false)
+  const [savingPerms, setSavingPerms] = useState({})
 
   const load = async () => {
     setLoading(true)
@@ -20,19 +64,32 @@ export default function StaffManager({ propertyId }) {
 
   useEffect(() => { load() }, [propertyId])
 
-  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 4000) }
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
-  // Step 1: Owner creates staff account via Supabase signup flow
-  // We use signUp which works from frontend, then immediately sign back in as owner
+  const handleTogglePermission = async (staffId, key, currentPerms) => {
+    const updated = {
+      ...DEFAULT_PERMISSIONS,
+      ...currentPerms,
+      [key]: !currentPerms[key]
+    }
+    setSavingPerms(p => ({ ...p, [staffId]: true }))
+    await supabase.from('profiles')
+      .update({ permissions: updated })
+      .eq('id', staffId)
+    setSavingPerms(p => ({ ...p, [staffId]: false }))
+    setStaff(prev => prev.map(s =>
+      s.id === staffId ? { ...s, permissions: updated } : s
+    ))
+    showToast(`Permission updated`)
+  }
+
   const handleCreateStaff = async () => {
     if (!form.name || !form.email || !form.password) { showToast('Fill all fields'); return }
     if (form.password.length < 6) { showToast('Password must be at least 6 characters'); return }
     setCreating(true)
 
-    // Save current owner session
     const { data: { session: ownerSession } } = await supabase.auth.getSession()
 
-    // Sign up new staff user
     const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
@@ -46,17 +103,16 @@ export default function StaffManager({ propertyId }) {
     }
 
     if (data.user) {
-      // Create/update their profile as staff
       await supabase.from('profiles').upsert({
         id: data.user.id,
         full_name: form.name,
         role: 'staff',
         property_id: propertyId,
-        is_admin: false
+        is_admin: false,
+        permissions: DEFAULT_PERMISSIONS
       })
     }
 
-    // Restore owner session
     if (ownerSession) {
       await supabase.auth.setSession({
         access_token: ownerSession.access_token,
@@ -105,35 +161,46 @@ export default function StaffManager({ propertyId }) {
               </div>
             </div>
           ) : (
-            staff.map(s => (
-              <div key={s.id} className="card" style={{ marginBottom: 12 }}>
-                <div className="row-between">
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>{s.full_name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Staff account</div>
+            staff.map(s => {
+              const perms = { ...DEFAULT_PERMISSIONS, ...(s.permissions || {}) }
+              return (
+                <div key={s.id} className="card" style={{ marginBottom: 12 }}>
+                  {/* Header */}
+                  <div className="row-between" style={{ marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 15 }}>{s.full_name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Staff account</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span className="badge badge-green">Active</span>
+                      <button className="btn btn-danger" style={{ fontSize: 12, padding: '4px 10px' }}
+                        onClick={() => handleRemove(s.id)}>Remove</button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span className="badge badge-green">Active</span>
-                    <button className="btn btn-danger" style={{ fontSize: 12, padding: '4px 10px' }}
-                      onClick={() => handleRemove(s.id)}>Remove</button>
+
+                  {/* Permission toggles */}
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Permissions {savingPerms[s.id] && <span style={{ color: 'var(--amber)', fontWeight: 400 }}>Saving...</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {PERMISSION_LABELS.map(({ key, label, icon }) => (
+                        <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 15 }}>{icon}</span>
+                            <span style={{ fontSize: 13, color: perms[key] ? 'var(--text)' : 'var(--text-secondary)' }}>{label}</span>
+                          </div>
+                          <Toggle
+                            checked={perms[key]}
+                            onChange={() => handleTogglePermission(s.id, key, perms)}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--bg)', borderRadius: 8, fontSize: 13 }}>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>Staff can:</div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                    {['View dashboard', 'View bed map', 'Collect rent', 'Add income & expenses'].map(item => (
-                      <span key={item} className="badge badge-green" style={{ fontSize: 11 }}>✓ {item}</span>
-                    ))}
-                  </div>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>Staff cannot:</div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {['Delete entries', 'Add/remove tenants', 'Add/delete beds', 'View reports'].map(item => (
-                      <span key={item} className="badge badge-red" style={{ fontSize: 11 }}>✗ {item}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </>
       )}
@@ -154,7 +221,7 @@ export default function StaffManager({ propertyId }) {
               <label>Password</label>
               <input type="password" placeholder="Min 6 characters" value={form.password} onChange={f('password')} />
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--blue-bg)', color: 'var(--blue)', padding: '10px 12px', borderRadius: 6 }}>
+            <div style={{ fontSize: 12, padding: '10px 12px', borderRadius: 6, background: 'var(--blue-bg)', color: 'var(--blue)' }}>
               Staff will log in at the same URL with these credentials. Share them securely.
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
