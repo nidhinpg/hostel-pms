@@ -3,9 +3,21 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
+const DEFAULT_PERMISSIONS = {
+  view_dashboard: true,
+  view_bedmap: true,
+  collect_rent: true,
+  add_expenses: true,
+  add_tenants: false,
+  delete_entries: false,
+  add_beds: false,
+  view_reports: false
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS)
   const [properties, setProperties] = useState([])
   const [activeProperty, setActiveProperty] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -22,6 +34,7 @@ export function AuthProvider({ children }) {
       if (session?.user) loadUserData(session.user)
       else {
         setProfile(null)
+        setPermissions(DEFAULT_PERMISSIONS)
         setProperties([])
         setActiveProperty(null)
         setLoading(false)
@@ -36,6 +49,23 @@ export function AuthProvider({ children }) {
       .from('profiles').select('*').eq('id', user.id).single()
 
     setProfile(profileData)
+
+    // Set permissions for staff, owners get all permissions
+    if (profileData?.role === 'staff') {
+      setPermissions({ ...DEFAULT_PERMISSIONS, ...(profileData?.permissions || {}) })
+    } else {
+      // Owners and admins have all permissions
+      setPermissions({
+        view_dashboard: true,
+        view_bedmap: true,
+        collect_rent: true,
+        add_expenses: true,
+        add_tenants: true,
+        delete_entries: true,
+        add_beds: true,
+        view_reports: true
+      })
+    }
 
     // Staff: load their assigned property directly
     if (profileData?.role === 'staff' && profileData?.property_id) {
@@ -76,6 +106,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, profile, properties, activeProperty,
       loading, signIn, signOut, selectProperty,
+      permissions,
       isAdmin: profile?.is_admin === true,
       isStaff: profile?.role === 'staff',
       isOwner: profile?.role === 'owner' || profile?.is_admin === true,
