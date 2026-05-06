@@ -19,14 +19,103 @@ function getMonthRange(month) {
   return { start, end }
 }
 
+// ── Export helpers ──────────────────────────────────────────────
+function exportCSV(filtered, month) {
+  const rows = [
+    ['Date', 'Type', 'Category', 'Description', 'Amount (₹)'],
+    ...filtered.map(t => [
+      t.date,
+      t.type,
+      t.category,
+      t.description || '',
+      t.type === 'income' ? t.amount : -t.amount
+    ])
+  ]
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Hosteloops_Finance_${month}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function exportPDF(filtered, month, income, expense) {
+  const net = income - expense
+  const rows = filtered.map(t => `
+    <tr>
+      <td>${t.date}</td>
+      <td><span class="${t.type === 'income' ? 'inc' : 'exp'}">${t.type}</span></td>
+      <td>${t.category}</td>
+      <td>${t.description || '—'}</td>
+      <td style="text-align:right;font-weight:600" class="${t.type === 'income' ? 'inc' : 'exp'}">
+        ${t.type === 'income' ? '+' : '-'}₹${Number(t.amount).toLocaleString('en-IN')}
+      </td>
+    </tr>`).join('')
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hosteloops Finance Report — ${month}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 32px; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .sub { color: #666; font-size: 12px; margin-bottom: 20px; }
+    .summary { display: flex; gap: 16px; margin-bottom: 24px; }
+    .pill { padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+    .green { background: #e6f4ea; color: #1a7a3a; }
+    .red { background: #fdecea; color: #c0392b; }
+    .blue { background: #e8f0fe; color: #1a56db; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f4f4f4; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #ddd; }
+    td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+    tr:last-child td { border-bottom: none; }
+    .inc { color: #1a7a3a; }
+    .exp { color: #c0392b; }
+    .footer { margin-top: 24px; font-size: 11px; color: #999; text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>🏠 Hosteloops — Finance Report</h1>
+  <div class="sub">Period: ${month} &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString('en-IN')}</div>
+  <div class="summary">
+    <div class="pill green">Income: ₹${Number(income).toLocaleString('en-IN')}</div>
+    <div class="pill red">Expenses: ₹${Number(expense).toLocaleString('en-IN')}</div>
+    <div class="pill ${net >= 0 ? 'green' : 'red'}">Net: ₹${Number(net).toLocaleString('en-IN')}</div>
+    <div class="pill blue">${filtered.length} entries</div>
+  </div>
+  <table>
+    <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">Hosteloops PMS — Palarivattom, Kochi</div>
+</body>
+</html>`
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
+  if (win) {
+    win.onload = () => {
+      win.print()
+      URL.revokeObjectURL(url)
+    }
+  }
+}
+// ───────────────────────────────────────────────────────────────
+
 export default function Finance({ propertyId, isStaff = false }) {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+  const [showExport, setShowExport] = useState(false)
   const [toast, setToast] = useState('')
   const [month, setMonth] = useState(currentMonth)
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState('all') // all | income | expense
+  const [filterType, setFilterType] = useState('all')
   const [filterCat, setFilterCat] = useState('All')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -88,7 +177,6 @@ export default function Finance({ propertyId, isStaff = false }) {
 
   const hasActiveFilters = search || filterType !== 'all' || filterCat !== 'All' || dateFrom || dateTo
 
-  // Apply all filters locally
   const filtered = transactions.filter(t => {
     if (filterType !== 'all' && t.type !== filterType) return false
     if (filterCat !== 'All' && t.category !== filterCat) return false
@@ -120,7 +208,13 @@ export default function Finance({ propertyId, isStaff = false }) {
     <div>
       <div className="page-header">
         <h1 className="page-title">Income & expenses</h1>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add entry</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => setShowExport(true)}
+            style={{ fontSize: 12, padding: '7px 14px' }}>
+            ⬇ Export
+          </button>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add entry</button>
+        </div>
       </div>
 
       {/* Month selector */}
@@ -254,6 +348,45 @@ export default function Finance({ propertyId, isStaff = false }) {
           </div>
         )}
       </div>
+
+      {/* Export Modal */}
+      {showExport && (
+        <Modal title="Export transactions" onClose={() => setShowExport(false)}
+          footer={<button className="btn" onClick={() => setShowExport(false)}>Close</button>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', background: 'var(--bg)', padding: '10px 14px', borderRadius: 8 }}>
+              Exporting <strong>{filtered.length} entries</strong> for <strong>{month}</strong>
+              {hasActiveFilters && <span style={{ color: 'var(--amber)' }}> (filtered view)</span>}
+              <br />
+              <span style={{ fontSize: 12 }}>Income: {fmt(income)} &nbsp;|&nbsp; Expenses: {fmt(expense)} &nbsp;|&nbsp; Net: {fmt(income - expense)}</span>
+            </div>
+
+            {/* CSV Download */}
+            <button
+              className="btn btn-primary"
+              style={{ padding: '12px 16px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 }}
+              onClick={() => { exportCSV(filtered, month); showToast('CSV downloaded!'); setShowExport(false) }}>
+              <span style={{ fontSize: 20 }}>📊</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600 }}>Download as CSV</div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Open in Excel or Google Sheets</div>
+              </div>
+            </button>
+
+            {/* PDF Print */}
+            <button
+              className="btn"
+              style={{ padding: '12px 16px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border)' }}
+              onClick={() => { exportPDF(filtered, month, income, expense); setShowExport(false) }}>
+              <span style={{ fontSize: 20 }}>🖨️</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600 }}>Print / Save as PDF</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Opens print dialog — choose "Save as PDF"</div>
+              </div>
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {/* Add entry modal */}
       {showAdd && (
