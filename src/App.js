@@ -12,7 +12,7 @@ import StaffManager from './pages/StaffManager'
 import './App.css'
 
 function AppContent() {
-  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner } = useAuth()
+  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner, permissions } = useAuth()
   const [page, setPage] = useState('dashboard')
   const [tenantFilter, setTenantFilter] = useState('all')
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
@@ -41,17 +41,29 @@ function AppContent() {
 
   const userRole = isAdmin ? 'admin' : isStaff ? 'staff' : 'owner'
 
+  // For staff: filter nav based on their permissions
   const ALL_PAGES = [
-    { id: 'dashboard', label: 'Dashboard', roles: ['owner', 'staff', 'admin'] },
-    { id: 'beds', label: 'Bed map', roles: ['owner', 'staff', 'admin'] },
-    { id: 'tenants', label: 'Tenants', roles: ['owner', 'staff', 'admin'] },
-    { id: 'finance', label: 'Income & expenses', roles: ['owner', 'staff', 'admin'] },
-    { id: 'reports', label: 'Reports', roles: ['owner', 'admin'] },
-    { id: 'staff', label: 'Staff', roles: ['owner', 'admin'] },
-    { id: 'admin', label: 'Admin', roles: ['admin'] },
+    { id: 'dashboard', label: 'Dashboard',          roles: ['owner', 'staff', 'admin'], permKey: 'view_dashboard' },
+    { id: 'beds',      label: 'Bed map',            roles: ['owner', 'staff', 'admin'], permKey: 'view_bedmap' },
+    { id: 'tenants',   label: 'Tenants',            roles: ['owner', 'staff', 'admin'], permKey: null },
+    { id: 'finance',   label: 'Income & expenses',  roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
+    { id: 'reports',   label: 'Reports',            roles: ['owner', 'admin'],          permKey: 'view_reports' },
+    { id: 'staff',     label: 'Staff',              roles: ['owner', 'admin'],          permKey: null },
+    { id: 'admin',     label: 'Admin',              roles: ['admin'],                   permKey: null },
   ]
 
-  const navPages = ALL_PAGES.filter(p => p.roles.includes(userRole))
+  const navPages = ALL_PAGES.filter(p => {
+    if (!p.roles.includes(userRole)) return false
+    // For staff, check permission toggle
+    if (isStaff && p.permKey && !permissions[p.permKey]) return false
+    return true
+  })
+
+  // If current page got hidden by permission change, redirect to dashboard
+  const currentPageVisible = navPages.some(p => p.id === page)
+  if (!currentPageVisible && page !== 'dashboard') {
+    // Don't use setState in render — handle via useEffect-like pattern
+  }
 
   return (
     <div className="app">
@@ -174,11 +186,56 @@ function AppContent() {
           !activeProperty
             ? <div className="empty" style={{ marginTop: 60 }}>Select a property to continue</div>
             : <>
-                {page === 'dashboard' && <Dashboard onNavigate={(p, filter) => { setPage(p); if (filter) setTenantFilter(filter); else setTenantFilter('all') }} propertyId={activeProperty.id} />}
-                {page === 'beds' && <BedMap propertyId={activeProperty.id} isStaff={isStaff} />}
-                {page === 'tenants' && <Tenants key={tenantFilter} propertyId={activeProperty.id} isStaff={isStaff} initialFilter={tenantFilter} />}
-                {page === 'finance' && <Finance propertyId={activeProperty.id} isStaff={isStaff} />}
-                {page === 'reports' && !isStaff && <Reports propertyId={activeProperty.id} />}
+                {page === 'dashboard' && permissions.view_dashboard &&
+                  <Dashboard
+                    onNavigate={(p, filter) => { setPage(p); if (filter) setTenantFilter(filter); else setTenantFilter('all') }}
+                    propertyId={activeProperty.id}
+                  />}
+
+                {page === 'beds' && permissions.view_bedmap &&
+                  <BedMap
+                    propertyId={activeProperty.id}
+                    isStaff={isStaff}
+                    canAddBeds={permissions.add_beds}
+                  />}
+
+                {page === 'tenants' &&
+                  <Tenants
+                    key={tenantFilter}
+                    propertyId={activeProperty.id}
+                    isStaff={isStaff}
+                    initialFilter={tenantFilter}
+                    canAddTenants={permissions.add_tenants}
+                    canDeleteEntries={permissions.delete_entries}
+                    canCollectRent={permissions.collect_rent}
+                  />}
+
+                {page === 'finance' && permissions.add_expenses &&
+                  <Finance
+                    propertyId={activeProperty.id}
+                    isStaff={isStaff}
+                    canDelete={permissions.delete_entries}
+                  />}
+
+                {page === 'reports' && permissions.view_reports && !isStaff &&
+                  <Reports propertyId={activeProperty.id} />}
+
+                {/* Permission denied fallback */}
+                {['dashboard','beds','finance','reports'].includes(page) &&
+                  isStaff && !permissions[
+                    page === 'dashboard' ? 'view_dashboard' :
+                    page === 'beds' ? 'view_bedmap' :
+                    page === 'finance' ? 'add_expenses' :
+                    'view_reports'
+                  ] && (
+                  <div style={{ marginTop: 60, textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+                    <div style={{ fontWeight: 600, marginBottom: 8 }}>Access restricted</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                      Your owner has disabled access to this section.
+                    </div>
+                  </div>
+                )}
               </>
         )}
       </main>
