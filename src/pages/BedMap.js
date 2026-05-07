@@ -291,18 +291,18 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
 
                   {/* Action buttons */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                    {!paid ? (
+                    {due && !paid ? (
                       <button
                         className="btn btn-primary"
                         style={{ flex: 1, fontSize: 13, padding: '9px 12px' }}
                         onClick={() => openCollect(t)}>
                         💰 Collect rent
                       </button>
-                    ) : (
+                    ) : paid ? (
                       <div style={{ flex: 1, textAlign: 'center', padding: '9px 12px', background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 500 }}>
                         ✓ Rent paid this month
                       </div>
-                    )}
+                    ) : null}
                     {t.phone && (
                       <button
                         onClick={() => openWhatsApp(t)}
