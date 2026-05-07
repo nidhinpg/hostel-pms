@@ -95,15 +95,15 @@ function exportPDF(filtered, month, income, expense) {
 </body>
 </html>`
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
+  const blob = new Blob(['\ufeff' + html], { type: 'text/html;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank')
-  if (win) {
-    win.onload = () => {
-      win.print()
-      URL.revokeObjectURL(url)
-    }
-  }
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Hosteloops_Finance_${month}.html`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 // ───────────────────────────────────────────────────────────────
 
@@ -380,8 +380,8 @@ export default function Finance({ propertyId, isStaff = false }) {
               onClick={() => { exportPDF(filtered, month, income, expense); setShowExport(false) }}>
               <span style={{ fontSize: 20 }}>🖨️</span>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 600 }}>Print / Save as PDF</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Opens print dialog — choose "Save as PDF"</div>
+                <div style={{ fontWeight: 600 }}>Download as HTML (Print to PDF)</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Open file → Ctrl+P → Save as PDF</div>
               </div>
             </button>
           </div>
