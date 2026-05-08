@@ -20,9 +20,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [showCollect, setShowCollect] = useState(false)
-  const [collectTenant, setCollectTenant] = useState(null)
-  const [collectForm, setCollectForm] = useState({ amount: '', date: new Date().toISOString().slice(0, 10), note: '' })
+
   const [newBed, setNewBed] = useState({ id: '', status: 'vacant' })
   const [toast, setToast] = useState('')
 
@@ -94,38 +92,6 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     showToast('Bed added')
     setShowAdd(false)
     setNewBed({ id: '', status: 'vacant' })
-    load()
-  }
-
-  const openCollect = (tenant) => {
-    setCollectTenant(tenant)
-    setCollectForm({ amount: tenant.rent || '', date: new Date().toISOString().slice(0, 10), note: '' })
-    setSelected(null)
-    setShowCollect(true)
-  }
-
-  const handleCollectRent = async () => {
-    if (!collectForm.amount) { showToast('Enter amount'); return }
-    const month = currentMonth()
-    const { error } = await supabase.from('rent_payments').upsert({
-      tenant_id: collectTenant.id,
-      property_id: propertyId,
-      month,
-      amount: parseInt(collectForm.amount),
-      paid_date: collectForm.date,
-    })
-    if (error) { showToast('Error: ' + error.message); return }
-    await supabase.from('transactions').insert({
-      property_id: propertyId,
-      type: 'income',
-      category: 'Rent',
-      amount: parseInt(collectForm.amount),
-      date: collectForm.date,
-      description: `Rent - ${collectTenant.name} (${collectTenant.bed_id})${collectForm.note ? ' - ' + collectForm.note : ''}`
-    })
-    showToast(`Rent collected from ${collectTenant.name} ✓`)
-    setShowCollect(false)
-    setCollectTenant(null)
     load()
   }
 
@@ -290,30 +256,18 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
                   </div>
 
                   {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                    {due && !paid ? (
-                      <button
-                        className="btn btn-primary"
-                        style={{ flex: 1, fontSize: 13, padding: '9px 12px' }}
-                        onClick={() => openCollect(t)}>
-                        💰 Collect rent
-                      </button>
-                    ) : paid ? (
-                      <div style={{ flex: 1, textAlign: 'center', padding: '9px 12px', background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 500 }}>
-                        ✓ Rent paid this month
-                      </div>
-                    ) : null}
-                    {t.phone && (
+                  {t.phone && (
+                    <div style={{ marginTop: 14 }}>
                       <button
                         onClick={() => openWhatsApp(t)}
-                        style={{ background: '#25D366', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '9px 14px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 500 }}>
+                        style={{ width: '100%', background: '#25D366', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '9px 14px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 500 }}>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
                           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                         </svg>
                         WhatsApp
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="empty" style={{ padding: '20px 0' }}>No tenant assigned</div>
@@ -322,55 +276,6 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
           </Modal>
         )
       })()}
-
-      {/* Collect Rent Modal */}
-      {showCollect && collectTenant && (
-        <Modal title={`Collect rent — ${collectTenant.name}`} onClose={() => setShowCollect(false)}
-          footer={
-            <>
-              <button className="btn" onClick={() => setShowCollect(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleCollectRent}>Confirm payment</button>
-            </>
-          }>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
-            <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Tenant</span>
-                <span style={{ fontWeight: 500 }}>{collectTenant.name}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Bed</span>
-                <span>{collectTenant.bed_id}</span>
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Amount (₹)</label>
-              <input
-                type="number"
-                value={collectForm.amount}
-                onChange={e => setCollectForm(p => ({ ...p, amount: e.target.value }))}
-                placeholder="Enter amount"
-              />
-            </div>
-            <div className="form-group">
-              <label>Payment date</label>
-              <input
-                type="date"
-                value={collectForm.date}
-                onChange={e => setCollectForm(p => ({ ...p, date: e.target.value }))}
-              />
-            </div>
-            <div className="form-group">
-              <label>Note (optional)</label>
-              <input
-                placeholder="e.g. Cash / UPI / Partial"
-                value={collectForm.note}
-                onChange={e => setCollectForm(p => ({ ...p, note: e.target.value }))}
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
 
       {/* Add bed modal */}
       {showAdd && (
