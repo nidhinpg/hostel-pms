@@ -48,7 +48,10 @@ export default function Dashboard({ onNavigate, propertyId }) {
     const beds = bedsRes.data || []
     const tx = txRes.data || []
     const tenants = tenantsRes.data || []
-    const paidIds = (paymentsRes.data || []).map(p => p.tenant_id)
+    const activeIds = tenants.map(t => t.id)
+const paidIds = (paymentsRes.data || [])
+  .map(p => p.tenant_id)
+  .filter(id => activeIds.includes(id))
 
     const occupied = beds.filter(b => b.status === 'occupied').length
     const income = tx.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0)
