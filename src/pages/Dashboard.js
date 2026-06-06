@@ -69,7 +69,7 @@ const paidIds = (paymentsRes.data || [])
       if (!rp.stay_end_date) continue
       const end = new Date(rp.stay_end_date)
       const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24))
-      if (diff <= 3) {
+      if (diff <= 3 && diff >= -3) {
         const tenant = tenants.find(t => t.id === rp.tenant_id)
         if (tenant) endingSoon.push({ ...tenant, stay_end_date: rp.stay_end_date, days_left: diff })
       }
