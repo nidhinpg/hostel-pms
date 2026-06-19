@@ -209,19 +209,63 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
         )
       })}
 
-      {/* Ungrouped beds */}
+      {/* Ungrouped beds — grouped by floor and room automatically */}
       {(() => {
         const known = STRUCTURE.flatMap(f => f.rooms)
         const ungrouped = beds.filter(b => !known.includes(b.id.replace(/[A-Z]+$/, '')))
         if (!ungrouped.length) return null
-        return (
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ background: 'var(--text-secondary)', color: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', marginBottom: 12, fontSize: 14, fontWeight: 600 }}>Other beds</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {ungrouped.map(bed => <BedCard key={bed.id} bed={bed} />)}
+
+        // Group by room
+        const roomMap = ungrouped.reduce((acc, bed) => {
+          const room = bed.id.replace(/[A-Z]+$/, '')
+          if (!acc[room]) acc[room] = []
+          acc[room].push(bed)
+          return acc
+        }, {})
+
+        // Group rooms by floor (first digit of room number)
+        const floorMap = Object.keys(roomMap).reduce((acc, room) => {
+          const floorNum = room[0]
+          const floorLabel = `Floor ${floorNum}`
+          if (!acc[floorLabel]) acc[floorLabel] = []
+          acc[floorLabel].push(room)
+          return acc
+        }, {})
+
+        return Object.entries(floorMap).map(([floorLabel, rooms]) => {
+          const floorBeds = rooms.flatMap(r => roomMap[r])
+          const floorOcc = floorBeds.filter(b => b.status === 'occupied').length
+          return (
+            <div key={floorLabel} style={{ marginBottom: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--text)', color: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', marginBottom: 12 }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{floorLabel}</span>
+                <span style={{ fontSize: 12, opacity: 0.8 }}>{floorOcc}/{floorBeds.length} occupied</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {rooms.map(roomNum => {
+                  const roomBeds = roomMap[roomNum]
+                  const roomOcc = roomBeds.filter(b => b.status === 'occupied').length
+                  return (
+                    <div key={roomNum} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>Room {roomNum}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{roomBeds.length} bed{roomBeds.length > 1 ? 's' : ''}</span>
+                          <span className={`badge ${roomOcc === roomBeds.length ? 'badge-red' : roomOcc === 0 ? 'badge-blue' : 'badge-amber'}`} style={{ fontSize: 10 }}>
+                            {roomOcc === roomBeds.length ? 'Full' : roomOcc === 0 ? 'Empty' : `${roomBeds.length - roomOcc} free`}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: 12 }}>
+                        {roomBeds.map(bed => <BedCard key={bed.id} bed={bed} />)}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        )
+          )
+        })
       })()}
 
       {/* Bed detail modal */}
