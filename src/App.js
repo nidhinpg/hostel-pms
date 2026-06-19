@@ -9,6 +9,7 @@ import Finance from './pages/Finance'
 import Reports from './pages/Reports'
 import AdminPanel from './pages/AdminPanel'
 import StaffManager from './pages/StaffManager'
+import ResetPassword from './pages/ResetPassword'
 import './App.css'
 
 function AppContent() {
@@ -244,6 +245,11 @@ function AppContent() {
 }
 
 export default function App() {
+  // Handle reset password route
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPassword />
+  }
+
   return (
     <AuthProvider>
       <AppContent />
