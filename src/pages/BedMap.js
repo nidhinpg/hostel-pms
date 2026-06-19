@@ -71,9 +71,25 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     const t = getTenant(selected.id)
     if (t) { showToast('Cannot delete — bed has active tenant'); return }
     if (!window.confirm(`Delete bed ${selected.id}?`)) return
+
+    // Step 1: Remove rent payments for any vacated tenants linked to this bed
+    const { data: linkedTenants } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('bed_id', selected.id)
+      .eq('property_id', propertyId)
+
+    if (linkedTenants && linkedTenants.length > 0) {
+      const ids = linkedTenants.map(t => t.id)
+      await supabase.from('rent_payments').delete().in('tenant_id', ids)
+      // Step 2: Nullify bed_id on vacated tenants (keeps history)
+      await supabase.from('tenants').update({ bed_id: null }).in('id', ids)
+    }
+
+    // Step 3: Now delete the bed
     const { error } = await supabase.from('beds').delete().eq('id', selected.id).eq('property_id', propertyId)
     if (error) {
-      showToast(error.code === '23503' ? 'Clear tenant history first' : 'Error: could not delete bed')
+      showToast('Error: could not delete bed')
       return
     }
     showToast('Bed deleted')
