@@ -207,7 +207,7 @@ export default function Finance({ propertyId, isStaff = false }) {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Income & expenses</h1>
+        <h1 className="page-title">Receipts & payments</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn" onClick={() => setShowExport(true)}
             style={{ fontSize: 12, padding: '7px 14px' }}>
