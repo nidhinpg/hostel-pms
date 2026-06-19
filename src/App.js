@@ -46,7 +46,7 @@ function AppContent() {
     { id: 'dashboard', label: 'Dashboard',          roles: ['owner', 'staff', 'admin'], permKey: 'view_dashboard' },
     { id: 'beds',      label: 'Bed map',            roles: ['owner', 'staff', 'admin'], permKey: 'view_bedmap' },
     { id: 'tenants',   label: 'Tenants',            roles: ['owner', 'staff', 'admin'], permKey: null },
-    { id: 'finance',   label: 'Income & expenses',  roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
+    { id: 'finance',   label: 'Receipts & payments',  roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
     { id: 'reports',   label: 'Reports',            roles: ['owner', 'admin'],          permKey: 'view_reports' },
     { id: 'staff',     label: 'Staff',              roles: ['owner', 'admin'],          permKey: null },
     { id: 'admin',     label: 'Admin',              roles: ['admin'],                   permKey: null },
