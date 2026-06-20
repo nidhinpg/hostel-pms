@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
 
@@ -14,6 +15,7 @@ function currentDate() {
 }
 
 export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all' }) {
+  const { activeProperty } = useAuth()
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
@@ -191,15 +193,31 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   }
 
   const getWhatsAppMsg = (tenant) => {
-    const msg = `Hi ${tenant.name.split(' ')[0]}, your rent of ${fmt(tenant.rent)} for ${month} is due. Please pay via GPay to 9061780979 (Hosteloops). Thank you! — Hosteloops`
+    const hostelName = activeProperty?.name || 'Hosteloops'
+    const gpay = activeProperty?.gpay_number || ''
+    const msg = `Hi ${tenant.name.split(' ')[0]}, your rent of ${fmt(tenant.rent)} for ${month} is due. Please pay via GPay to ${gpay} (${hostelName}). Thank you! — ${hostelName}`
     return `https://wa.me/91${tenant.phone}?text=${encodeURIComponent(msg)}`
   }
 
   const buildReceiptUrl = (r) => {
     let msg = ''
-    if (r.isPartial) {msg = `Hi ${r.name.split(' ')[0]},\nReceipt - Hosteloops Hostel\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nDays: ${r.days} days\nValid from: ${r.from}\nValid till: ${r.till}\nThank you! — Hosteloops`
+    const hostelName = activeProperty?.name || 'Hosteloops'
+    if (r.isPartial) {msg = `Hi ${r.name.split(' ')[0]},
+Receipt - ${hostelName}
+Bed: ${r.bed}
+Amount paid: ₹${Number(r.amount).toLocaleString('en-IN')}
+Days: ${r.days} days
+Valid from: ${r.from}
+Valid till: ${r.till}
+Thank you! — ${hostelName}`
     } else {
-msg = `Hi ${r.name.split(' ')[0]},\nReceipt - Hosteloops Hostel\nBed: ${r.bed}\nAmount paid: ₹${Number(r.amount).toLocaleString('en-IN')}\nMonth: ${r.month}\nDate: ${r.date}\nThank you! — Hosteloops`
+msg = `Hi ${r.name.split(' ')[0]},
+Receipt - ${hostelName}
+Bed: ${r.bed}
+Amount paid: ₹${Number(r.amount).toLocaleString('en-IN')}
+Month: ${r.month}
+Date: ${r.date}
+Thank you! — ${hostelName}`
     }
     return `https://wa.me/91${r.phone}?text=${encodeURIComponent(msg)}`
   }
