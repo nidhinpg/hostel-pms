@@ -45,16 +45,24 @@ export function AuthProvider({ children }) {
   }, [])
 
   const loadUserData = async (user) => {
-    const { data: profileData } = await supabase
-      .from('profiles').select('*').eq('id', user.id).single()
+    // Fetch all profile rows for this user (owners can have multiple — one per property)
+    const { data: profileRows } = await supabase
+      .from('profiles').select('*').eq('id', user.id)
 
+    if (!profileRows || profileRows.length === 0) {
+      setProfile(null)
+      setLoading(false)
+      return
+    }
+
+    // Use first row for role/permissions (same across all rows for an owner)
+    const profileData = profileRows[0]
     setProfile(profileData)
 
-    // Set permissions for staff, owners get all permissions
+    // Set permissions
     if (profileData?.role === 'staff') {
       setPermissions({ ...DEFAULT_PERMISSIONS, ...(profileData?.permissions || {}) })
     } else {
-      // Owners and admins have all permissions
       setPermissions({
         view_dashboard: true,
         view_bedmap: true,
@@ -67,16 +75,17 @@ export function AuthProvider({ children }) {
       })
     }
 
-    // Staff: load their assigned property directly
+    // Staff: load their single assigned property
     if (profileData?.role === 'staff' && profileData?.property_id) {
       const { data: prop } = await supabase
         .from('properties').select('*').eq('id', profileData.property_id).single()
       setProperties(prop ? [prop] : [])
       setActiveProperty(prop || null)
     } else {
-      // Owner/admin: load all their properties
+      // Owner: load properties for all their profile rows
+      const propertyIds = profileRows.map(p => p.property_id).filter(Boolean)
       const { data: props } = await supabase
-        .from('properties').select('*').eq('owner_id', user.id).order('created_at')
+        .from('properties').select('*').in('id', propertyIds).order('created_at')
       const propList = props || []
       setProperties(propList)
       const savedId = localStorage.getItem('activePropertyId')
