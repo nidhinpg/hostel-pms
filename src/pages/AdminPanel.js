@@ -33,7 +33,7 @@ export default function AdminPanel() {
   const load = useCallback(async () => {
     const { data: profiles } = await supabase.from('profiles').select('*').order('created_at')
     const { data: props } = await supabase.from('properties').select('*').order('created_at')
-    const combined = (profiles || []).map(p => ({
+    const combined = (profiles || []).filter(p => p.role !== 'staff').map(p => ({
       ...p,
       properties: (props || []).filter(pr => pr.owner_id === p.id)
     }))
