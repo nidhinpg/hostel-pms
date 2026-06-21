@@ -33,7 +33,8 @@ export default function AdminPanel() {
   const load = useCallback(async () => {
     const { data: profiles } = await supabase.from('profiles').select('*').order('created_at')
     const { data: props } = await supabase.from('properties').select('*').order('created_at')
-    const combined = (profiles || []).filter(p => p.role !== 'staff').map(p => ({
+    const unique = (profiles || []).filter(p => p.role !== 'staff').filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
+    const combined = unique.map(p => ({
       ...p,
       properties: (props || []).filter(pr => pr.owner_id === p.id)
     }))
