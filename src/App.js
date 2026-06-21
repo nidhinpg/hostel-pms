@@ -128,7 +128,7 @@ function AppContent() {
                 : 'Your subscription is no longer active. Please contact admin to reactivate.'}
             </div>
             <a
-              href={`https://wa.me/919061780979?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Hosteloops%20PMS%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
+              href={`https://wa.me/917012160141?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Hosteloops%20PMS%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
               target="_blank"
               rel="noreferrer"
               style={{
