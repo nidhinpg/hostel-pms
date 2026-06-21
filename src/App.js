@@ -12,12 +12,75 @@ import StaffManager from './pages/StaffManager'
 import ResetPassword from './pages/ResetPassword'
 import './App.css'
 
+function SettingsModal({ onClose, activeProperty, onSaved }) {
+  const [gpay, setGpay] = useState(activeProperty?.gpay_number || '')
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await supabase
+      .from('properties')
+      .update({ gpay_number: gpay.trim() })
+      .eq('id', activeProperty.id)
+    setSaving(false)
+    if (error) { setToast('Error saving'); return }
+    setToast('Saved!')
+    onSaved(gpay.trim())
+    setTimeout(onClose, 800)
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 200, padding: 20
+    }} onClick={onClose}>
+      <div style={{
+        background: 'var(--surface)', borderRadius: 'var(--radius)',
+        padding: 24, minWidth: 300, maxWidth: 400, width: '100%',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Property Settings</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>{activeProperty?.name}</div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+            GPay Number (for WhatsApp reminders)
+          </label>
+          <input
+            value={gpay}
+            onChange={e => setGpay(e.target.value)}
+            placeholder="e.g. 9947674921"
+            style={{
+              width: '100%', padding: '8px 10px', fontSize: 13,
+              border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+
+        {toast && <div style={{ fontSize: 12, color: 'var(--green)', marginBottom: 12 }}>{toast}</div>}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AppContent() {
-  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner, permissions } = useAuth()
+  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner, permissions, refreshProperties } = useAuth()
   const [page, setPage] = useState('dashboard')
   const [tenantFilter, setTenantFilter] = useState('all')
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -42,29 +105,21 @@ function AppContent() {
 
   const userRole = isAdmin ? 'admin' : isStaff ? 'staff' : 'owner'
 
-  // For staff: filter nav based on their permissions
+  // Staff removed from nav — moved to profile dropdown
   const ALL_PAGES = [
-    { id: 'dashboard', label: 'Dashboard',          roles: ['owner', 'staff', 'admin'], permKey: 'view_dashboard' },
-    { id: 'beds',      label: 'Bed map',            roles: ['owner', 'staff', 'admin'], permKey: 'view_bedmap' },
-    { id: 'tenants',   label: 'Tenants',            roles: ['owner', 'staff', 'admin'], permKey: null },
-    { id: 'finance',   label: 'Receipts & payments',  roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
-    { id: 'reports',   label: 'Reports',            roles: ['owner', 'admin'],          permKey: 'view_reports' },
-    { id: 'staff',     label: 'Staff',              roles: ['owner', 'admin'],          permKey: null },
-    { id: 'admin',     label: 'Admin',              roles: ['admin'],                   permKey: null },
+    { id: 'dashboard', label: 'Dashboard',           roles: ['owner', 'staff', 'admin'], permKey: 'view_dashboard' },
+    { id: 'beds',      label: 'Bed map',             roles: ['owner', 'staff', 'admin'], permKey: 'view_bedmap' },
+    { id: 'tenants',   label: 'Tenants',             roles: ['owner', 'staff', 'admin'], permKey: null },
+    { id: 'finance',   label: 'Receipts & payments', roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
+    { id: 'reports',   label: 'Reports',             roles: ['owner', 'admin'],          permKey: 'view_reports' },
+    { id: 'admin',     label: 'Admin',               roles: ['admin'],                   permKey: null },
   ]
 
   const navPages = ALL_PAGES.filter(p => {
     if (!p.roles.includes(userRole)) return false
-    // For staff, check permission toggle
     if (isStaff && p.permKey && !permissions[p.permKey]) return false
     return true
   })
-
-  // If current page got hidden by permission change, redirect to dashboard
-  const currentPageVisible = navPages.some(p => p.id === page)
-  if (!currentPageVisible && page !== 'dashboard') {
-    // Don't use setState in render — handle via useEffect-like pattern
-  }
 
   return (
     <div className="app">
@@ -76,7 +131,7 @@ function AppContent() {
               <span className="logo-text">Hosteloops PMS</span>
             </div>
 
-            {/* Property switcher — owners with multiple properties */}
+            {/* Property switcher */}
             {isOwner && properties.length > 1 && (
               <div style={{ position: 'relative' }}>
                 <button
@@ -158,6 +213,7 @@ function AppContent() {
                 borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                 minWidth: 200, zIndex: 100, overflow: 'hidden'
               }}>
+                {/* Profile info */}
                 <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{profile?.full_name}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user?.email}</div>
@@ -167,6 +223,30 @@ function AppContent() {
                     {isOwner && !isAdmin && <span className="badge badge-amber">Owner</span>}
                   </div>
                 </div>
+
+                {/* Staff management — owners only */}
+                {isOwner && (
+                  <div
+                    onClick={() => { setPage('staff'); setShowUserMenu(false) }}
+                    style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    👥 Staff management
+                  </div>
+                )}
+
+                {/* Settings — owners only */}
+                {isOwner && activeProperty && (
+                  <div
+                    onClick={() => { setShowSettings(true); setShowUserMenu(false) }}
+                    style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    ⚙️ Settings
+                  </div>
+                )}
+
+                {/* Sign out */}
                 <div
                   onClick={() => { signOut(); setShowUserMenu(false) }}
                   style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, color: 'var(--red)' }}
@@ -221,7 +301,6 @@ function AppContent() {
                 {page === 'reports' && permissions.view_reports && !isStaff &&
                   <Reports propertyId={activeProperty.id} />}
 
-                {/* Permission denied fallback */}
                 {['dashboard','beds','finance','reports'].includes(page) &&
                   isStaff && !permissions[
                     page === 'dashboard' ? 'view_dashboard' :
@@ -240,16 +319,26 @@ function AppContent() {
               </>
         )}
       </main>
+
+      {/* Settings modal */}
+      {showSettings && activeProperty && (
+        <SettingsModal
+          activeProperty={activeProperty}
+          onClose={() => setShowSettings(false)}
+          onSaved={(newGpay) => {
+            // Update activeProperty gpay in memory so reminders use new number immediately
+            activeProperty.gpay_number = newGpay
+          }}
+        />
+      )}
     </div>
   )
 }
 
 export default function App() {
-  // Handle reset password route
   if (window.location.pathname === '/reset-password') {
     return <ResetPassword />
   }
-
   return (
     <AuthProvider>
       <AppContent />
