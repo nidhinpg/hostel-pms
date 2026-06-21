@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
 
-const PLAN_TYPES = ['trial', 'basic', 'pro', 'owned']
+const PLAN_TYPES = ['trial', 'pro']
 
 export default function AdminPanel() {
   const [owners, setOwners] = useState([])
@@ -132,10 +132,8 @@ export default function AdminPanel() {
   }
 
   const planColor = (plan) => {
-    if (plan === 'owned') return 'badge-blue'
     if (plan === 'pro') return 'badge-green'
-    if (plan === 'basic') return 'badge-amber'
-    return 'badge-red'
+    return 'badge-amber'
   }
 
   if (loading) return <div className="loading">Loading admin panel...</div>
@@ -210,18 +208,22 @@ export default function AdminPanel() {
                     <span className={`badge ${prop.subscription_status === 'active' ? 'badge-green' : 'badge-red'}`}>
                       {prop.subscription_status}
                     </span>
-                    <select value={prop.plan_type}
-                      onChange={e => handleUpdatePlan(prop.id, e.target.value, prop.subscription_status)}
-                      style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)' }}>
-                      {PLAN_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    <select value={prop.subscription_status}
-                      onChange={e => handleUpdatePlan(prop.id, prop.plan_type, e.target.value)}
-                      style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)' }}>
-                      <option value="active">active</option>
-                      <option value="expired">expired</option>
-                      <option value="suspended">suspended</option>
-                    </select>
+                    {prop.plan_type !== 'owned' && (
+                      <>
+                        <select value={prop.plan_type}
+                          onChange={e => handleUpdatePlan(prop.id, e.target.value, prop.subscription_status)}
+                          style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)' }}>
+                          {PLAN_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                        <select value={prop.subscription_status}
+                          onChange={e => handleUpdatePlan(prop.id, prop.plan_type, e.target.value)}
+                          style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)' }}>
+                          <option value="active">active</option>
+                          <option value="expired">expired</option>
+                          <option value="suspended">suspended</option>
+                        </select>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
