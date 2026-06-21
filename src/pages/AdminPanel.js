@@ -8,14 +8,24 @@ export default function AdminPanel() {
   const [owners, setOwners] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddOwner, setShowAddOwner] = useState(false)
-  const [showAddProperty, setShowAddProperty] = useState(false)
   const [selectedOwner, setSelectedOwner] = useState(null)
+  const [showAddProperty, setShowAddProperty] = useState(false)
   const [toast, setToast] = useState('')
-  const [ownerForm, setOwnerForm] = useState({ email: '', password: '', full_name: '' })
+  const [creating, setCreating] = useState(false)
+
+  const [form, setForm] = useState({
+    full_name: '', email: '', password: '',
+    prop_name: '', city: '', address: '',
+    plan_type: 'trial', subscription_status: 'active',
+    trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    gpay_number: ''
+  })
+
   const [propForm, setPropForm] = useState({
     name: '', address: '', city: '',
     plan_type: 'trial', subscription_status: 'active',
-    trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+    trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    gpay_number: ''
   })
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
@@ -23,7 +33,6 @@ export default function AdminPanel() {
   const load = useCallback(async () => {
     const { data: profiles } = await supabase.from('profiles').select('*').order('created_at')
     const { data: props } = await supabase.from('properties').select('*').order('created_at')
-
     const combined = (profiles || []).map(p => ({
       ...p,
       properties: (props || []).filter(pr => pr.owner_id === p.id)
@@ -34,29 +43,61 @@ export default function AdminPanel() {
 
   useEffect(() => { load() }, [load])
 
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const pf = k => e => setPropForm(p => ({ ...p, [k]: e.target.value }))
+
+  // One-shot: create owner + property + profile in one click
   const handleAddOwner = async () => {
-    if (!ownerForm.email || !ownerForm.password || !ownerForm.full_name) {
-      showToast('Fill all fields'); return
+    if (!form.full_name || !form.email || !form.password || !form.prop_name) {
+      showToast('Fill all required fields'); return
     }
-    // Create user via Supabase admin
+    if (form.password.length < 6) { showToast('Password min 6 characters'); return }
+    setCreating(true)
+
+    // Step 1: create auth user
     const { data, error } = await supabase.auth.admin.createUser({
-      email: ownerForm.email,
-      password: ownerForm.password,
+      email: form.email,
+      password: form.password,
       email_confirm: true,
-      user_metadata: { full_name: ownerForm.full_name }
+      user_metadata: { full_name: form.full_name }
     })
-    if (error) { showToast('Error: ' + error.message); return }
+    if (error) { showToast('Error: ' + error.message); setCreating(false); return }
 
-    // Create profile
+    const userId = data.user.id
+
+    // Step 2: create property
+    const { data: prop, error: propErr } = await supabase.from('properties').insert({
+      owner_id: userId,
+      name: form.prop_name,
+      city: form.city,
+      address: form.address,
+      plan_type: form.plan_type,
+      subscription_status: form.subscription_status,
+      trial_end_date: form.trial_end_date,
+      gpay_number: form.gpay_number || null
+    }).select().single()
+
+    if (propErr) { showToast('Error creating property: ' + propErr.message); setCreating(false); return }
+
+    // Step 3: create profile with property_id
     await supabase.from('profiles').insert({
-      id: data.user.id,
-      full_name: ownerForm.full_name,
-      is_admin: false
+      id: userId,
+      full_name: form.full_name,
+      role: 'owner',
+      is_admin: false,
+      property_id: prop.id
     })
 
-    showToast('Owner created! Now add a property for them.')
+    showToast('✅ Owner + property created successfully!')
     setShowAddOwner(false)
-    setOwnerForm({ email: '', password: '', full_name: '' })
+    setForm({
+      full_name: '', email: '', password: '',
+      prop_name: '', city: '', address: '',
+      plan_type: 'trial', subscription_status: 'active',
+      trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      gpay_number: ''
+    })
+    setCreating(false)
     load()
   }
 
@@ -67,9 +108,19 @@ export default function AdminPanel() {
       ...propForm
     })
     if (error) { showToast('Error: ' + error.message); return }
+
+    // Also insert a new profile row for this owner+property
+    await supabase.from('profiles').insert({
+      id: selectedOwner.id,
+      full_name: selectedOwner.full_name,
+      role: 'owner',
+      is_admin: false,
+      property_id: null // will be updated after property created
+    }).select().single()
+
     showToast('Property added!')
     setShowAddProperty(false)
-    setPropForm({ name: '', address: '', city: '', plan_type: 'trial', subscription_status: 'active', trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) })
+    setPropForm({ name: '', address: '', city: '', plan_type: 'trial', subscription_status: 'active', trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), gpay_number: '' })
     load()
   }
 
@@ -78,9 +129,6 @@ export default function AdminPanel() {
     showToast('Plan updated')
     load()
   }
-
-  const of = k => e => setOwnerForm(p => ({ ...p, [k]: e.target.value }))
-  const pf = k => e => setPropForm(p => ({ ...p, [k]: e.target.value }))
 
   const planColor = (plan) => {
     if (plan === 'owned') return 'badge-blue'
@@ -98,6 +146,7 @@ export default function AdminPanel() {
         <button className="btn btn-primary" onClick={() => setShowAddOwner(true)}>+ Add owner</button>
       </div>
 
+      {/* Metrics */}
       <div className="metrics" style={{ marginBottom: 24 }}>
         <div className="metric">
           <div className="metric-label">Total owners</div>
@@ -121,6 +170,7 @@ export default function AdminPanel() {
         </div>
       </div>
 
+      {/* Owner list */}
       {owners.map(owner => (
         <div key={owner.id} className="card" style={{ marginBottom: 12 }}>
           <div className="row-between" style={{ marginBottom: 12 }}>
@@ -151,6 +201,7 @@ export default function AdminPanel() {
                     <div style={{ fontWeight: 500, fontSize: 14 }}>{prop.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                       {prop.city} · Trial ends: {prop.trial_end_date || '—'}
+                      {prop.gpay_number && ` · GPay: ${prop.gpay_number}`}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -158,14 +209,12 @@ export default function AdminPanel() {
                     <span className={`badge ${prop.subscription_status === 'active' ? 'badge-green' : 'badge-red'}`}>
                       {prop.subscription_status}
                     </span>
-                    <select
-                      value={prop.plan_type}
+                    <select value={prop.plan_type}
                       onChange={e => handleUpdatePlan(prop.id, e.target.value, prop.subscription_status)}
                       style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)' }}>
                       {PLAN_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
-                    <select
-                      value={prop.subscription_status}
+                    <select value={prop.subscription_status}
                       onChange={e => handleUpdatePlan(prop.id, prop.plan_type, e.target.value)}
                       style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)' }}>
                       <option value="active">active</option>
@@ -180,27 +229,56 @@ export default function AdminPanel() {
         </div>
       ))}
 
-      {/* Add Owner Modal */}
+      {/* Add Owner Modal — one form for everything */}
       {showAddOwner && (
         <Modal title="Add new owner" onClose={() => setShowAddOwner(false)}
           footer={
             <>
               <button className="btn" onClick={() => setShowAddOwner(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAddOwner}>Create owner</button>
+              <button className="btn btn-primary" onClick={handleAddOwner} disabled={creating}>
+                {creating ? 'Creating...' : '✅ Create owner & property'}
+              </button>
             </>
           }>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="form-group"><label>Full name</label><input placeholder="John Mathew" value={ownerForm.full_name} onChange={of('full_name')} /></div>
-            <div className="form-group"><label>Email</label><input type="email" placeholder="john@example.com" value={ownerForm.email} onChange={of('email')} /></div>
-            <div className="form-group"><label>Temporary password</label><input type="password" placeholder="Min 6 characters" value={ownerForm.password} onChange={of('password')} /></div>
+
+            {/* Owner section */}
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', paddingBottom: 4, borderBottom: '1px solid var(--border)' }}>
+              Owner details
+            </div>
+            <div className="form-group"><label>Full name *</label><input placeholder="John Mathew" value={form.full_name} onChange={f('full_name')} /></div>
+            <div className="form-group"><label>Email *</label><input type="email" placeholder="john@example.com" value={form.email} onChange={f('email')} /></div>
+            <div className="form-group"><label>Password *</label><input type="password" placeholder="Min 6 characters" value={form.password} onChange={f('password')} /></div>
+
+            {/* Property section */}
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', paddingBottom: 4, borderBottom: '1px solid var(--border)', marginTop: 4 }}>
+              Property details
+            </div>
+            <div className="form-group"><label>Property name *</label><input placeholder="Sunrise Hostel" value={form.prop_name} onChange={f('prop_name')} /></div>
+            <div className="form-grid">
+              <div className="form-group"><label>City</label><input placeholder="Kochi" value={form.city} onChange={f('city')} /></div>
+              <div className="form-group"><label>GPay number</label><input placeholder="9947XXXXXX" value={form.gpay_number} onChange={f('gpay_number')} /></div>
+            </div>
+            <div className="form-group"><label>Address</label><input placeholder="Full address" value={form.address} onChange={f('address')} /></div>
+            <div className="form-grid">
+              <div className="form-group"><label>Plan</label>
+                <select value={form.plan_type} onChange={f('plan_type')}>
+                  {PLAN_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Trial end date</label>
+                <input type="date" value={form.trial_end_date} onChange={f('trial_end_date')} />
+              </div>
+            </div>
+
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg)', padding: '8px 12px', borderRadius: 6 }}>
-              Owner will log in with these credentials. Share password securely.
+              This creates the login account, property, and links them together automatically.
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Add Property Modal */}
+      {/* Add Property to existing owner */}
       {showAddProperty && selectedOwner && (
         <Modal title={`Add property for ${selectedOwner.full_name}`} onClose={() => setShowAddProperty(false)}
           footer={
@@ -213,21 +291,17 @@ export default function AdminPanel() {
             <div className="form-group"><label>Property name *</label><input placeholder="Sunrise Hostel" value={propForm.name} onChange={pf('name')} /></div>
             <div className="form-grid">
               <div className="form-group"><label>City</label><input placeholder="Kochi" value={propForm.city} onChange={pf('city')} /></div>
+              <div className="form-group"><label>GPay number</label><input placeholder="9947XXXXXX" value={propForm.gpay_number} onChange={pf('gpay_number')} /></div>
+            </div>
+            <div className="form-group"><label>Address</label><input placeholder="Full address" value={propForm.address} onChange={pf('address')} /></div>
+            <div className="form-grid">
               <div className="form-group"><label>Plan</label>
                 <select value={propForm.plan_type} onChange={pf('plan_type')}>
                   {PLAN_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-            </div>
-            <div className="form-group"><label>Address</label><input placeholder="Full address" value={propForm.address} onChange={pf('address')} /></div>
-            <div className="form-grid">
-              <div className="form-group"><label>Trial end date</label><input type="date" value={propForm.trial_end_date} onChange={pf('trial_end_date')} /></div>
-              <div className="form-group"><label>Status</label>
-                <select value={propForm.subscription_status} onChange={pf('subscription_status')}>
-                  <option value="active">active</option>
-                  <option value="expired">expired</option>
-                  <option value="suspended">suspended</option>
-                </select>
+              <div className="form-group"><label>Trial end date</label>
+                <input type="date" value={propForm.trial_end_date} onChange={pf('trial_end_date')} />
               </div>
             </div>
           </div>
