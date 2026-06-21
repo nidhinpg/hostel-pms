@@ -112,7 +112,6 @@ function AppContent() {
     { id: 'tenants',   label: 'Tenants',             roles: ['owner', 'staff', 'admin'], permKey: null },
     { id: 'finance',   label: 'Receipts & payments', roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
     { id: 'reports',   label: 'Reports',             roles: ['owner', 'admin'],          permKey: 'view_reports' },
-    { id: 'admin',     label: 'Admin',               roles: ['admin'],                   permKey: null },
   ]
 
   const navPages = ALL_PAGES.filter(p => {
@@ -223,6 +222,17 @@ function AppContent() {
                     {isOwner && !isAdmin && <span className="badge badge-amber">Owner</span>}
                   </div>
                 </div>
+
+                {/* Admin panel — admins only */}
+                {isAdmin && (
+                  <div
+                    onClick={() => { setPage('admin'); setShowUserMenu(false) }}
+                    style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    🛡️ Admin panel
+                  </div>
+                )}
 
                 {/* Staff management — owners only */}
                 {isOwner && (
