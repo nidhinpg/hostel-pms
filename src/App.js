@@ -103,6 +103,51 @@ function AppContent() {
     </div>
   )
 
+  // Trial/subscription check — skip for admin
+  if (!isAdmin && activeProperty) {
+    const status = activeProperty.subscription_status
+    const planType = activeProperty.plan_type
+    const trialEnd = activeProperty.trial_end_date ? new Date(activeProperty.trial_end_date) : null
+    const isTrialExpired = planType === 'trial' && trialEnd && trialEnd < new Date()
+    const isSuspended = status === 'suspended' || status === 'expired'
+
+    if (isTrialExpired || isSuspended) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 20 }}>
+          <div className="card" style={{ maxWidth: 420, textAlign: 'center', padding: 32 }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>⏰</div>
+            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
+              {isTrialExpired ? 'Your free trial has ended' : 'Subscription expired'}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              {activeProperty.name}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
+              {isTrialExpired
+                ? 'Your 3-month free trial has expired. Upgrade to Pro to continue using Hosteloops PMS.'
+                : 'Your subscription is no longer active. Please contact admin to reactivate.'}
+            </div>
+            <a
+              href={`https://wa.me/919061780979?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Hosteloops%20PMS%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-block', background: '#25D366', color: 'white',
+                padding: '10px 20px', borderRadius: 'var(--radius)', fontSize: 14,
+                fontWeight: 600, textDecoration: 'none', marginBottom: 12
+              }}>
+              💬 Contact on WhatsApp
+            </a>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 16 }}>
+              or call: 9061780979
+            </div>
+            <button className="btn" style={{ fontSize: 12 }} onClick={signOut}>Sign out</button>
+          </div>
+        </div>
+      )
+    }
+  }
+
   const userRole = isAdmin ? 'admin' : isStaff ? 'staff' : 'owner'
 
   // Staff removed from nav — moved to profile dropdown
