@@ -83,11 +83,9 @@ export function AuthProvider({ children }) {
       setActiveProperty(prop || null)
     } else {
       // Admin loads ALL properties; owner loads their own
-      const isAdminUser = profileData?.is_admin === true
       const propertyIds = profileRows.map(p => p.property_id).filter(Boolean)
-      let propsQuery = supabase.from('properties').select('*').order('created_at')
-      if (!isAdminUser) propsQuery = propsQuery.in('id', propertyIds)
-      const { data: props } = await propsQuery
+      const { data: props } = await supabase
+        .from('properties').select('*').in('id', propertyIds).order('created_at')
       const propList = props || []
       setProperties(propList)
       const savedId = localStorage.getItem('activePropertyId')
