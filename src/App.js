@@ -196,7 +196,7 @@ function AppContent() {
                     borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                     minWidth: 200, zIndex: 100, overflow: 'hidden'
                   }}>
-                    {properties.filter(p => p.plan_type !== 'owned').map(p => (
+                    {properties.map(p => (
                       <div key={p.id}
                         onClick={() => { selectProperty(p); setShowPropertyMenu(false); setPage('dashboard') }}
                         style={{
