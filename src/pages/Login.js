@@ -11,6 +11,7 @@ export default function Login() {
   const [mode, setMode] = useState('login') // 'login' | 'forgot'
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -43,10 +44,23 @@ export default function Login() {
       justifyContent: 'center', background: 'var(--bg)', padding: 20
     }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
+
+        {/* Logo + Brand */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🏠</div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-            Hosteloops PMS
+          <div style={{
+            width: 64, height: 64, borderRadius: 16,
+            background: '#D85A30', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 14px'
+          }}>
+            <svg width="38" height="38" viewBox="0 0 48 48" fill="none">
+              <circle cx="20" cy="24" r="10" stroke="white" strokeWidth="2.5" fill="none"/>
+              <line x1="28" y1="16" x2="40" y2="38" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+              <circle cx="20" cy="24" r="4" fill="white"/>
+            </svg>
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 4, letterSpacing: '-0.5px' }}>
+            Pavio
           </h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             {mode === 'login' ? 'Sign in to manage your property' : 'Reset your password'}
@@ -78,13 +92,27 @@ export default function Login() {
                       Forgot password?
                     </button>
                   </div>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      style={{ width: '100%', paddingRight: 40, boxSizing: 'border-box' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute', right: 10, top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: 0, color: 'var(--text-secondary)', fontSize: 16
+                      }}>
+                      {showPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
 
                 {error && (
@@ -96,7 +124,7 @@ export default function Login() {
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  style={{ width: '100%', padding: '10px', fontSize: 14, justifyContent: 'center' }}
+                  style={{ width: '100%', padding: '10px', fontSize: 14, justifyContent: 'center', background: '#D85A30', borderColor: '#D85A30' }}
                   disabled={loading}>
                   {loading ? 'Signing in...' : 'Sign in'}
                 </button>
@@ -142,7 +170,7 @@ export default function Login() {
                     <button
                       type="submit"
                       className="btn btn-primary"
-                      style={{ width: '100%', padding: '10px', fontSize: 14, justifyContent: 'center' }}
+                      style={{ width: '100%', padding: '10px', fontSize: 14, justifyContent: 'center', background: '#D85A30', borderColor: '#D85A30' }}
                       disabled={resetLoading}>
                       {resetLoading ? 'Sending...' : 'Send reset link'}
                     </button>
