@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { PushNotifications } from '@capacitor/push-notifications'
+import { Capacitor } from '@capacitor/core'
 
 const AuthContext = createContext({})
 
@@ -14,27 +16,29 @@ const DEFAULT_PERMISSIONS = {
   view_reports: false
 }
 
-// Save FCM token to Supabase
 const saveFcmToken = async (userId) => {
   try {
-    const { PushNotifications } = await import('@capacitor/push-notifications')
+    // Only run on native Android/iOS
+    if (!Capacitor.isNativePlatform()) return
 
-    // Request permission
     const permResult = await PushNotifications.requestPermissions()
     if (permResult.receive !== 'granted') return
 
-    // Register for push notifications
     await PushNotifications.register()
 
-    // Listen for token
     PushNotifications.addListener('registration', async (token) => {
+      console.log('FCM Token:', token.value)
       await supabase
         .from('profiles')
         .update({ fcm_token: token.value })
         .eq('id', userId)
     })
+
+    PushNotifications.addListener('registrationError', (err) => {
+      console.error('FCM registration error:', err)
+    })
   } catch (e) {
-    // Not on mobile — silently ignore
+    console.error('Push notification setup error:', e)
   }
 }
 
