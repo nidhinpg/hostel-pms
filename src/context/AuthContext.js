@@ -18,9 +18,6 @@ const DEFAULT_PERMISSIONS = {
 
 const saveFcmToken = async (userId) => {
   try {
-    // Only run on native Android/iOS
-    if (!Capacitor.isNativePlatform()) return
-
     const permResult = await PushNotifications.requestPermissions()
     if (permResult.receive !== 'granted') return
 
