@@ -14,6 +14,30 @@ const DEFAULT_PERMISSIONS = {
   view_reports: false
 }
 
+// Save FCM token to Supabase
+const saveFcmToken = async (userId) => {
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications')
+
+    // Request permission
+    const permResult = await PushNotifications.requestPermissions()
+    if (permResult.receive !== 'granted') return
+
+    // Register for push notifications
+    await PushNotifications.register()
+
+    // Listen for token
+    PushNotifications.addListener('registration', async (token) => {
+      await supabase
+        .from('profiles')
+        .update({ fcm_token: token.value })
+        .eq('id', userId)
+    })
+  } catch (e) {
+    // Not on mobile — silently ignore
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -45,7 +69,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   const loadUserData = async (user) => {
-    // Fetch all profile rows for this user (owners can have multiple — one per property)
     const { data: profileRows } = await supabase
       .from('profiles').select('*').eq('id', user.id)
 
@@ -55,11 +78,9 @@ export function AuthProvider({ children }) {
       return
     }
 
-    // Use first row for role/permissions (same across all rows for an owner)
     const profileData = profileRows[0]
     setProfile(profileData)
 
-    // Set permissions
     if (profileData?.role === 'staff') {
       setPermissions({ ...DEFAULT_PERMISSIONS, ...(profileData?.permissions || {}) })
     } else {
@@ -75,14 +96,12 @@ export function AuthProvider({ children }) {
       })
     }
 
-    // Staff: load their single assigned property
     if (profileData?.role === 'staff' && profileData?.property_id) {
       const { data: prop } = await supabase
         .from('properties').select('*').eq('id', profileData.property_id).single()
       setProperties(prop ? [prop] : [])
       setActiveProperty(prop || null)
     } else {
-      // Admin loads ALL properties; owner loads their own
       const propertyIds = profileRows.map(p => p.property_id).filter(Boolean)
       const { data: props } = await supabase
         .from('properties').select('*').in('id', propertyIds).order('created_at')
@@ -92,6 +111,9 @@ export function AuthProvider({ children }) {
       const saved = propList.find(p => p.id === savedId)
       setActiveProperty(saved || propList[0] || null)
     }
+
+    // Save FCM token for push notifications (mobile only)
+    saveFcmToken(user.id)
 
     setLoading(false)
   }
