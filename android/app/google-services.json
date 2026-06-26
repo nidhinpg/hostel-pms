@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1482169803",
+    "project_id": "pavio-efba3",
+    "storage_bucket": "pavio-efba3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1482169803:android:99086d3a3a30871751ea4e",
+        "android_client_info": {
+          "package_name": "com.pavio.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGTbA90JVs0zA4MetH-LWnMszl0VtWDbA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
