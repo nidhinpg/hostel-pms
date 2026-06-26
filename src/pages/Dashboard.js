@@ -24,7 +24,7 @@ function isTenantDue(tenant, paidIds) {
   return todayDay >= joinDay - 1  // show 1 day before due date
 }
 
-export default function Dashboard({ onNavigate, propertyId }) {
+export default function Dashboard({ onNavigate, propertyId, propertyName }) {
   const [stats, setStats] = useState(null)
   const [recent, setRecent] = useState([])
   const [dueTenants, setDueTenants] = useState([])
@@ -93,7 +93,12 @@ const paidIds = (paymentsRes.data || [])
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          {propertyName && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{propertyName}</div>
+          )}
+        </div>
         <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
           {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
         </span>
