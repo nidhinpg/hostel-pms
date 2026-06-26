@@ -332,6 +332,7 @@ function AppContent() {
                   <Dashboard
                     onNavigate={(p, filter) => { setPage(p); if (filter) setTenantFilter(filter); else setTenantFilter('all') }}
                     propertyId={activeProperty.id}
+                    propertyName={activeProperty.name}
                   />}
 
                 {page === 'beds' && permissions.view_bedmap &&
