@@ -93,7 +93,7 @@ function AppContent() {
   if (!activeProperty && !isAdmin) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 20 }}>
       <div className="card" style={{ maxWidth: 400, textAlign: 'center' }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>🏠</div>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🏢</div>
         <div style={{ fontWeight: 600, marginBottom: 8 }}>No property assigned</div>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
           Contact your administrator to assign a property to your account.
@@ -124,11 +124,11 @@ function AppContent() {
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
               {isTrialExpired
-                ? 'Your 3-month free trial has expired. Upgrade to Pro to continue using Hosteloops PMS.'
+                ? 'Your 3-month free trial has expired. Upgrade to Pro to continue using Pavio.'
                 : 'Your subscription is no longer active. Please contact admin to reactivate.'}
             </div>
             <a
-              href={`https://wa.me/917012160141?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Hosteloops%20PMS%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
+              href={`https://wa.me/917012160141?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Pavio%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
               target="_blank"
               rel="noreferrer"
               style={{
@@ -170,9 +170,15 @@ function AppContent() {
       <header className="header">
         <div className="header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div className="logo">
-              <span className="logo-icon">🏠</span>
-              <span className="logo-text">Hosteloops PMS</span>
+            <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: '#D85A30', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="17" height="17" viewBox="0 0 48 48" fill="none">
+                  <circle cx="20" cy="24" r="10" stroke="white" strokeWidth="2.5" fill="none"/>
+                  <line x1="28" y1="16" x2="40" y2="38" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                  <circle cx="20" cy="24" r="4" fill="white"/>
+                </svg>
+              </div>
+              <span className="logo-text" style={{ fontWeight: 600, letterSpacing: '-0.3px' }}>Pavio</span>
             </div>
 
             {/* Property switcher */}
