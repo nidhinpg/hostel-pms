@@ -17,14 +17,14 @@ export default function AdminPanel() {
     full_name: '', email: '', password: '',
     prop_name: '', city: '', address: '',
     plan_type: 'trial', subscription_status: 'active',
-    trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    trial_end_date: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
     gpay_number: ''
   })
 
   const [propForm, setPropForm] = useState({
     name: '', address: '', city: '',
     plan_type: 'trial', subscription_status: 'active',
-    trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    trial_end_date: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
     gpay_number: ''
   })
 
@@ -95,7 +95,7 @@ export default function AdminPanel() {
       full_name: '', email: '', password: '',
       prop_name: '', city: '', address: '',
       plan_type: 'trial', subscription_status: 'active',
-      trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      trial_end_date: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
       gpay_number: ''
     })
     setCreating(false)
@@ -121,7 +121,7 @@ export default function AdminPanel() {
 
     showToast('Property added!')
     setShowAddProperty(false)
-    setPropForm({ name: '', address: '', city: '', plan_type: 'trial', subscription_status: 'active', trial_end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), gpay_number: '' })
+    setPropForm({ name: '', address: '', city: '', plan_type: 'trial', subscription_status: 'active', trial_end_date: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10), gpay_number: '' })
     load()
   }
 
