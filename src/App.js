@@ -85,15 +85,14 @@ const loadRazorpay = () => new Promise(resolve => {
   document.body.appendChild(script)
 })
 
-const openRazorpay = async (property) => {
+const openRazorpay = async (property, planType = 'monthly') => {
   const loaded = await loadRazorpay()
   if (!loaded) { alert('Failed to load payment. Please try again.'); return }
 
-  // Create subscription via your backend
   const res = await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/create-subscription', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ property_id: property.id, property_name: property.name })
+    body: JSON.stringify({ property_id: property.id, property_name: property.name, plan_type: planType })
   })
   const { subscription_id, error } = await res.json()
   if (error) { alert('Error creating subscription: ' + error); return }
@@ -102,9 +101,8 @@ const openRazorpay = async (property) => {
     key: RAZORPAY_KEY,
     subscription_id,
     name: 'Pavio PMS',
-    description: 'Pro Plan - ' + property.name,
+    description: (planType === 'yearly' ? 'Pro Yearly' : 'Pro Monthly') + ' - ' + property.name,
     handler: async (response) => {
-      // Payment successful — activate plan
       await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/activate-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -389,11 +387,18 @@ function AppContent() {
                             </span>
                           )}
                         </div>
-                        <button
-                          onClick={() => { openRazorpay(activeProperty); setShowUserMenu(false) }}
-                          style={{ marginTop: 6, fontSize: 12, color: 'white', background: '#D85A30', border: 'none', cursor: 'pointer', padding: '4px 10px', borderRadius: 4, fontWeight: 600 }}>
-                          ⚡ Upgrade to Pro
-                        </button>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          <button
+                            onClick={() => { openRazorpay(activeProperty, 'monthly'); setShowUserMenu(false) }}
+                            style={{ fontSize: 11, color: 'white', background: '#D85A30', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4, fontWeight: 600 }}>
+                            ⚡ Monthly ₹999
+                          </button>
+                          <button
+                            onClick={() => { openRazorpay(activeProperty, 'yearly'); setShowUserMenu(false) }}
+                            style={{ fontSize: 11, color: 'white', background: 'var(--text)', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4, fontWeight: 600 }}>
+                            🏆 Yearly ₹7,999
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
