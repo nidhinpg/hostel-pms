@@ -74,6 +74,55 @@ function SettingsModal({ onClose, activeProperty, onSaved }) {
   )
 }
 
+const RAZORPAY_KEY = 'rzp_live_T7TrGIeNx4lC0M'
+
+const loadRazorpay = () => new Promise(resolve => {
+  if (window.Razorpay) return resolve(true)
+  const script = document.createElement('script')
+  script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+  script.onload = () => resolve(true)
+  script.onerror = () => resolve(false)
+  document.body.appendChild(script)
+})
+
+const openRazorpay = async (property) => {
+  const loaded = await loadRazorpay()
+  if (!loaded) { alert('Failed to load payment. Please try again.'); return }
+
+  // Create subscription via your backend
+  const res = await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/create-subscription', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ property_id: property.id, property_name: property.name })
+  })
+  const { subscription_id, error } = await res.json()
+  if (error) { alert('Error creating subscription: ' + error); return }
+
+  const options = {
+    key: RAZORPAY_KEY,
+    subscription_id,
+    name: 'Pavio PMS',
+    description: 'Pro Plan - ' + property.name,
+    handler: async (response) => {
+      // Payment successful — activate plan
+      await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/activate-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property_id: property.id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_subscription_id: response.razorpay_subscription_id,
+          razorpay_signature: response.razorpay_signature
+        })
+      })
+      alert('Payment successful! Your Pro plan is now active.')
+      window.location.reload()
+    },
+    theme: { color: '#D85A30' }
+  }
+  new window.Razorpay(options).open()
+}
+
 function AppContent() {
   const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner, permissions, refreshProperties } = useAuth()
   const [page, setPage] = useState('dashboard')
@@ -127,21 +176,30 @@ function AppContent() {
                 ? 'Your 3-month free trial has expired. Upgrade to Pro to continue using Pavio.'
                 : 'Your subscription is no longer active. Please contact admin to reactivate.'}
             </div>
+            <button
+              onClick={() => openRazorpay(activeProperty)}
+              style={{
+                display: 'inline-block', background: 'var(--primary, #D85A30)', color: 'white',
+                padding: '12px 24px', borderRadius: 'var(--radius)', fontSize: 15,
+                fontWeight: 700, border: 'none', cursor: 'pointer', marginBottom: 12, width: '100%'
+              }}>
+              ⚡ Subscribe to Pro — ₹999/month
+            </button>
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 16 }}>
+              Auto-renews monthly. Cancel anytime.
+            </div>
             <a
               href={`https://wa.me/917012160141?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Pavio%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
               target="_blank"
               rel="noreferrer"
               style={{
-                display: 'inline-block', background: '#25D366', color: 'white',
-                padding: '10px 20px', borderRadius: 'var(--radius)', fontSize: 14,
-                fontWeight: 600, textDecoration: 'none', marginBottom: 12
+                display: 'inline-block', color: 'var(--text-secondary)',
+                fontSize: 13, textDecoration: 'none', marginBottom: 12
               }}>
-              💬 Contact on WhatsApp
+              💬 Contact on WhatsApp instead
             </a>
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 16 }}>
-              or call: 9061780979
-            </div>
-            <button className="btn" style={{ fontSize: 12 }} onClick={signOut}>Sign out</button>
+            <br/>
+            <button className="btn" style={{ fontSize: 12, marginTop: 8 }} onClick={signOut}>Sign out</button>
           </div>
         </div>
       )
