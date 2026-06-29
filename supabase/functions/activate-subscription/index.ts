@@ -8,10 +8,19 @@ const supabase = createClient(
 
 const RAZORPAY_KEY_SECRET = Deno.env.get('RAZORPAY_KEY_SECRET')!
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   const { property_id, razorpay_payment_id, razorpay_subscription_id, razorpay_signature } = await req.json()
 
-  // Verify payment signature
   const message = `${razorpay_payment_id}|${razorpay_subscription_id}`
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey(
@@ -23,25 +32,23 @@ Deno.serve(async (req) => {
     .map(b => b.toString(16).padStart(2, '0')).join('')
 
   if (expectedSignature !== razorpay_signature) {
-    return new Response(JSON.stringify({ error: 'Invalid signature' }), { status: 400 })
+    return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 
-  // Activate pro plan
-  const { error } = await supabase
-    .from('properties')
-    .update({
-      plan_type: 'pro',
-      subscription_status: 'active',
-      razorpay_subscription_id
-    })
+  const { error } = await supabase.from('properties')
+    .update({ plan_type: 'pro', subscription_status: 'active', razorpay_subscription_id })
     .eq('id', property_id)
 
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 
   return new Response(JSON.stringify({ success: true }), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     status: 200
   })
 })
