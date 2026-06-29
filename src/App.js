@@ -354,6 +354,51 @@ function AppContent() {
                   </div>
                 )}
 
+                {/* Plan info — owners only */}
+                {isOwner && activeProperty && !isAdmin && (
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Current Plan</div>
+                    {activeProperty.plan_type === 'pro' ? (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>✅ Pro — Active</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>₹999/mo</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm('Are you sure you want to cancel your Pro subscription?')) return
+                            await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/cancel-subscription', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ property_id: activeProperty.id, subscription_id: activeProperty.razorpay_subscription_id })
+                            })
+                            alert('Subscription cancelled. Your plan will remain active until the end of the billing period.')
+                            setShowUserMenu(false)
+                          }}
+                          style={{ marginTop: 6, fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                          Cancel subscription
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--amber)' }}>
+                          🕐 Trial
+                          {activeProperty.trial_end_date && (
+                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 6 }}>
+                              ends {new Date(activeProperty.trial_end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => { openRazorpay(activeProperty); setShowUserMenu(false) }}
+                          style={{ marginTop: 6, fontSize: 12, color: 'white', background: '#D85A30', border: 'none', cursor: 'pointer', padding: '4px 10px', borderRadius: 4, fontWeight: 600 }}>
+                          ⚡ Upgrade to Pro
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Settings — owners only */}
                 {isOwner && activeProperty && (
                   <div
