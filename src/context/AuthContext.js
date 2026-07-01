@@ -102,7 +102,6 @@ export function AuthProvider({ children }) {
       supabase.removeChannel(channel)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   const loadUserData = async (user) => {
