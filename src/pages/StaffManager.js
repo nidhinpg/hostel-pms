@@ -17,7 +17,7 @@ const PERMISSION_LABELS = [
   { key: 'view_dashboard',  label: 'View dashboard',        icon: '📊' },
   { key: 'view_bedmap',     label: 'View bed map',          icon: '🛏' },
   { key: 'collect_rent',    label: 'Collect rent',          icon: '💰' },
-  { key: 'add_expenses',    label: 'Add income & expenses', icon: '📝' },
+  { key: 'add_expenses',    label: 'Receipts & payments',   icon: '📝' },
   { key: 'add_tenants',     label: 'Add/remove tenants',    icon: '👤' },
   { key: 'add_beds',        label: 'Add/delete beds',       icon: '🛏' },
   { key: 'view_reports',    label: 'View reports',          icon: '📈' },
