@@ -22,6 +22,22 @@ const PLANS = {
   pro_yearly:     { id: 'plan_T7WMuKFrSxeIcI', label: '🏆 Pro Yearly',     price: '₹7,999/year', desc: 'Auto WhatsApp from Pavio number', save: 'SAVE ₹3,989' },
 }
 
+// Short, plain-language feature lists shown under each tier so the difference is obvious at a glance.
+const TIER_FEATURES = {
+  basic: [
+    '1 property',
+    'Tap a button to open WhatsApp, you hit send',
+    'Finance reports — CSV & PDF export',
+  ],
+  pro: [
+    'Unlimited properties',
+    'Staff logins with permission controls',
+    'WhatsApp reminders sent automatically, every day',
+    'Push notifications for rent due',
+    'Priority WhatsApp support',
+  ],
+}
+
 const loadRazorpay = () => new Promise(resolve => {
   if (window.Razorpay) return resolve(true)
   const script = document.createElement('script')
@@ -66,6 +82,20 @@ const openRazorpay = async (property, planKey) => {
     },
     theme: { color: '#D85A30' }
   }).open()
+}
+
+// ─── Feature list (shared between Upgrade modal and expired screen) ──────────
+function FeatureList({ items }) {
+  return (
+    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', textAlign: 'left' }}>
+      {items.map((item, i) => (
+        <li key={i} style={{ display: 'flex', gap: 6, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.4 }}>
+          <span style={{ flexShrink: 0 }}>✓</span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
@@ -114,7 +144,7 @@ function UpgradeModal({ onClose, activeProperty }) {
 
         {/* Basic */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Basic — Manual WhatsApp</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {['basic_monthly', 'basic_yearly'].map(key => {
             const p = PLANS[key]
             return (
@@ -127,10 +157,11 @@ function UpgradeModal({ onClose, activeProperty }) {
             )
           })}
         </div>
+        <FeatureList items={TIER_FEATURES.basic} />
 
         {/* Pro */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Pro — Auto WhatsApp Reminders</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {['pro_monthly', 'pro_yearly'].map(key => {
             const p = PLANS[key]
             return (
@@ -143,6 +174,7 @@ function UpgradeModal({ onClose, activeProperty }) {
             )
           })}
         </div>
+        <FeatureList items={TIER_FEATURES.pro} />
 
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginBottom: 16 }}>
           ₹1 authorization today, actual charge from next day. Cancel anytime.
@@ -203,7 +235,7 @@ function AppContent() {
 
             {/* Basic plans */}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Basic — Manual WhatsApp</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button onClick={() => openRazorpay(activeProperty, 'basic_monthly')}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: '2px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
                 ₹499/month
@@ -214,10 +246,11 @@ function AppContent() {
                 ₹3,999/year
               </button>
             </div>
+            <FeatureList items={TIER_FEATURES.basic} />
 
             {/* Pro plans */}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Pro — Auto WhatsApp Reminders</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button onClick={() => openRazorpay(activeProperty, 'pro_monthly')}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: 'none', background: '#D85A30', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
                 ₹999/month
@@ -228,6 +261,7 @@ function AppContent() {
                 ₹7,999/year
               </button>
             </div>
+            <FeatureList items={TIER_FEATURES.pro} />
 
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 16 }}>₹1 authorization today, actual charge from next day. Cancel anytime.</div>
             <a href={`https://wa.me/917012160141?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Pavio%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
