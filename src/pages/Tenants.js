@@ -382,7 +382,7 @@ Thank you! — ${hostelName}`
                                     onClick={() => openCollect(t)}>Collect early</button>
                                 )
                               )}
-                              {(!isStaff || canDeleteEntries) && (
+                              {(!isStaff || canAddTenants) && (
                                 <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 10px' }}
                                   onClick={() => openVacate(t)}>Vacate</button>
                               )}
