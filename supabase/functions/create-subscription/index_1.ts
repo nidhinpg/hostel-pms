@@ -15,14 +15,12 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const { property_id, property_name } = await req.json()
+  const { property_id, property_name, plan_id } = await req.json()
 
-  if (!property_id) {
-    return new Response(JSON.stringify({ error: 'property_id required' }), {
+  if (!property_id || !plan_id) {
+    return new Response(JSON.stringify({ error: 'property_id and plan_id required' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
@@ -30,12 +28,9 @@ Deno.serve(async (req) => {
   const auth = btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)
   const res = await fetch('https://api.razorpay.com/v1/subscriptions', {
     method: 'POST',
-    headers: {
-      'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      plan_id: Deno.env.get('RAZORPAY_PLAN_ID'),
+      plan_id,
       total_count: 120,
       quantity: 1,
       notes: { property_id, property_name }
@@ -50,12 +45,9 @@ Deno.serve(async (req) => {
     })
   }
 
-  await supabase.from('properties')
-    .update({ razorpay_subscription_id: data.id })
-    .eq('id', property_id)
+  await supabase.from('properties').update({ razorpay_subscription_id: data.id }).eq('id', property_id)
 
   return new Response(JSON.stringify({ subscription_id: data.id }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    status: 200
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200
   })
 })

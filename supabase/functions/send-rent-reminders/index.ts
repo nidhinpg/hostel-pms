@@ -7,7 +7,6 @@ const supabase = createClient(
 
 const INTERAKT_API_KEY = Deno.env.get('INTERAKT_API_KEY')!
 
-// Send WhatsApp message via Interakt
 async function sendWhatsApp(phone: string, tenantName: string, rent: string, month: string, gpay: string, hostelName: string) {
   const res = await fetch('https://api.interakt.ai/v1/public/message/', {
     method: 'POST',
@@ -35,7 +34,11 @@ Deno.serve(async () => {
   const todayDay = today.getDate()
   const month = `${today.toLocaleString('en-IN', { month: 'long' })} ${today.getFullYear()}`
 
-  // Get all active tenants
+  // Calculate tomorrow's day correctly (handling month-end)
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  const tomorrowDay = tomorrow.getDate()
+
   const { data: tenants } = await supabase
     .from('tenants')
     .select('*')
@@ -48,15 +51,13 @@ Deno.serve(async () => {
   const results = []
 
   for (const tenant of tenants) {
-    const moveInDay = new Date(tenant.move_in_date).getDate()
+    const moveInDay = new Date(tenant.movein_date).getDate()
     
-    // Send on due date AND 1 day before
     const isDueDay = moveInDay === todayDay
-    const isDayBefore = moveInDay === todayDay + 1
+    const isDayBefore = moveInDay === tomorrowDay
 
     if (!isDueDay && !isDayBefore) continue
 
-    // Get property details for GPay and hostel name
     const { data: property } = await supabase
       .from('properties')
       .select('name, gpay_number')
