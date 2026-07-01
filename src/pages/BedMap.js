@@ -211,7 +211,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     <div>
       <div className="page-header">
         <h1 className="page-title">Bed map</h1>
-        {(!isStaff || canAddBeds) && !isStaff && (
+        {(!isStaff || canAddBeds) && (
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add bed</button>
         )}
       </div>
