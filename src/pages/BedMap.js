@@ -88,10 +88,20 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
       await supabase.from('tenants').update({ bed_id: null }).in('id', ids)
     }
 
-    // Step 3: Now delete the bed
-    const { error } = await supabase.from('beds').delete().eq('id', selected.id).eq('property_id', propertyId)
+    // Step 3: Now delete the bed — use .select() so we know how many rows were actually deleted
+    const { data: deleted, error } = await supabase
+      .from('beds')
+      .delete()
+      .eq('id', selected.id)
+      .eq('property_id', propertyId)
+      .select()
+
     if (error) {
-      showToast('Error: could not delete bed')
+      showToast('Error: ' + error.message)
+      return
+    }
+    if (!deleted || deleted.length === 0) {
+      showToast('Delete blocked by permissions. Check RLS policy.')
       return
     }
     showToast('Bed deleted')
@@ -332,7 +342,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
           <Modal title={`Bed ${selected.id}`} onClose={() => setSelected(null)}
             footer={
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {(!isStaff || canAddBeds) && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
+                {(!isStaff || canAddBeds) && selected.status === 'vacant' && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
                 {!isStaff && selected.status !== 'vacant' && <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>}
                 <button className="btn" onClick={() => setSelected(null)}>Close</button>
               </div>
