@@ -22,8 +22,8 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
   const [showAdd, setShowAdd] = useState(false)
 
   const [addMode, setAddMode] = useState('single')
-  const [newBed, setNewBed] = useState({ id: '', status: 'vacant' })
-  const [bulkBed, setBulkBed] = useState({ room: '', count: 4, startLetter: 'A', status: 'vacant' })
+  const [newBed, setNewBed] = useState({ id: '' })
+  const [bulkBed, setBulkBed] = useState({ room: '', count: 4, startLetter: 'A' })
   const [toast, setToast] = useState('')
 
   const load = useCallback(async () => {
@@ -103,13 +103,13 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     if (!newBed.id.trim()) return
     const { error } = await supabase.from('beds').insert({
       id: newBed.id.trim().toUpperCase(),
-      status: newBed.status,
+      status: 'vacant',
       property_id: propertyId
     })
     if (error) { showToast('Bed ID already exists'); return }
     showToast('Bed added')
     setShowAdd(false)
-    setNewBed({ id: '', status: 'vacant' })
+    setNewBed({ id: '' })
     load()
   }
 
@@ -148,7 +148,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
 
     const rows = toInsert.map(id => ({
       id,
-      status: bulkBed.status,
+      status: 'vacant',
       property_id: propertyId
     }))
 
@@ -162,7 +162,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
         : `Added ${toInsert.length} bed${toInsert.length > 1 ? 's' : ''}`
     )
     setShowAdd(false)
-    setBulkBed({ room: '', count: 4, startLetter: 'A', status: 'vacant' })
+    setBulkBed({ room: '', count: 4, startLetter: 'A' })
     load()
   }
 
@@ -460,12 +460,6 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
                 <div className="form-group"><label>Bed ID</label>
                   <input placeholder="e.g. 101E" value={newBed.id} onChange={e => setNewBed(p => ({ ...p, id: e.target.value }))} />
                 </div>
-                <div className="form-group"><label>Status</label>
-                  <select value={newBed.status} onChange={e => setNewBed(p => ({ ...p, status: e.target.value }))}>
-                    <option value="vacant">Vacant</option>
-                    <option value="maintenance">Maintenance</option>
-                  </select>
-                </div>
               </div>
             ) : (
               <div className="form-grid">
@@ -484,12 +478,6 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
                     <input maxLength="1" placeholder="A" value={bulkBed.startLetter}
                       onChange={e => setBulkBed(p => ({ ...p, startLetter: e.target.value.toUpperCase() }))} />
                   </div>
-                </div>
-                <div className="form-group"><label>Status</label>
-                  <select value={bulkBed.status} onChange={e => setBulkBed(p => ({ ...p, status: e.target.value }))}>
-                    <option value="vacant">Vacant</option>
-                    <option value="maintenance">Maintenance</option>
-                  </select>
                 </div>
 
                 {/* Live preview */}
