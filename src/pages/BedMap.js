@@ -332,7 +332,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
           <Modal title={`Bed ${selected.id}`} onClose={() => setSelected(null)}
             footer={
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {!isStaff && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
+                {(!isStaff || canAddBeds) && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
                 {!isStaff && selected.status !== 'vacant' && <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>}
                 <button className="btn" onClick={() => setSelected(null)}>Close</button>
               </div>
