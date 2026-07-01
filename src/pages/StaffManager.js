@@ -81,8 +81,27 @@ export default function StaffManager({ propertyId }) {
   const handleTogglePermission = async (staffId, key, currentPerms) => {
     const updated = { ...DEFAULT_PERMISSIONS, ...currentPerms, [key]: !currentPerms[key] }
     setSavingPerms(p => ({ ...p, [staffId]: true }))
-    await supabase.from('profiles').update({ permissions: updated }).eq('id', staffId)
+
+    // Use .select() so we get the updated row back and can verify the write actually happened
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ permissions: updated })
+      .eq('id', staffId)
+      .select()
+
     setSavingPerms(p => ({ ...p, [staffId]: false }))
+
+    if (error) {
+      showToast('Error: ' + error.message)
+      return
+    }
+    if (!data || data.length === 0) {
+      // RLS silently blocked the update — 0 rows changed
+      showToast('Save blocked by permissions. Check RLS policy.')
+      return
+    }
+
+    // Only update local state if DB write actually succeeded
     setStaff(prev => prev.map(s => s.id === staffId ? { ...s, permissions: updated } : s))
     showToast('Permission updated')
   }
