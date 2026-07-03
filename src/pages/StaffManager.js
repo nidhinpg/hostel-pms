@@ -44,8 +44,8 @@ function Toggle({ checked, onChange }) {
   )
 }
 
-export default function StaffManager({ propertyId }) {
-  const { properties, isAdmin } = useAuth()
+export default function StaffManager({ propertyId, onUpgradeClick }) {
+  const { properties, activeProperty, isAdmin } = useAuth()
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -157,6 +157,41 @@ export default function StaffManager({ propertyId }) {
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
   if (loading) return <div className="loading">Loading...</div>
+
+  // Gate: Staff management is a Pro-only feature (admins bypass)
+  const isPro = activeProperty?.plan_type === 'pro'
+  if (!isAdmin && !isPro) {
+    return (
+      <div>
+        <div className="page-header">
+          <h1 className="page-title">Staff management</h1>
+        </div>
+        <div className="card" style={{ maxWidth: 480, margin: '40px auto', textAlign: 'center', padding: 32 }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8 }}>Staff logins are a Pro feature</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
+            Your {activeProperty?.plan_type === 'basic' ? 'Basic' : 'Trial'} plan supports one owner login per property.
+            Upgrade to Pro to add staff members and control what each one can see and do.
+          </div>
+          <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: 14, marginBottom: 20, textAlign: 'left' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>What Pro unlocks</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+              ✓ Add staff logins with permission controls<br/>
+              ✓ Unlimited properties<br/>
+              ✓ Automatic WhatsApp rent reminders<br/>
+              ✓ Push notifications for rent due
+            </div>
+          </div>
+          {onUpgradeClick && (
+            <button className="btn btn-primary" style={{ width: '100%', background: '#D85A30', border: 'none' }}
+              onClick={onUpgradeClick}>
+              ⚡ Upgrade to Pro
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
