@@ -117,24 +117,23 @@ export default function StaffManager({ propertyId, onUpgradeClick }) {
     if (!currentUser) { showToast('Not signed in'); setCreating(false); return }
 
     try {
-      const res = await fetch(
-        'https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/create-staff-account',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: form.email.trim().toLowerCase(),
-            password: form.password,
-            full_name: form.name.trim(),
-            property_id: form.property_id,
-            requester_id: currentUser.id
-          })
+      const { data: result, error: fnError } = await supabase.functions.invoke('create-staff-account', {
+        body: {
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          full_name: form.name.trim(),
+          property_id: form.property_id,
+          requester_id: currentUser.id
         }
-      )
-      const result = await res.json().catch(() => ({}))
+      })
 
-      if (!res.ok || result.error) {
-        showToast('Error (' + res.status + '): ' + (result.error || result.message || 'Failed to create staff'))
+      if (fnError) {
+        showToast('Error: ' + (fnError.message || 'Failed to create staff'))
+        setCreating(false)
+        return
+      }
+      if (result?.error) {
+        showToast('Error: ' + result.error)
         setCreating(false)
         return
       }
