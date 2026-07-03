@@ -467,7 +467,7 @@ function AppContent() {
 
       <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }}>
         {page === 'admin' && isAdmin && <AdminPanel />}
-        {page === 'staff' && isOwner && <StaffManager propertyId={activeProperty?.id} />}
+        {page === 'staff' && isOwner && <StaffManager propertyId={activeProperty?.id} onUpgradeClick={() => setShowUpgradeModal(true)} />}
         {!['admin', 'staff'].includes(page) && (
           !activeProperty
             ? <div className="empty" style={{ marginTop: 60 }}>Select a property to continue</div>
