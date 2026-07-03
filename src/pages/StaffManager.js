@@ -112,39 +112,42 @@ export default function StaffManager({ propertyId, onUpgradeClick }) {
     if (form.password.length < 6) { showToast('Password must be at least 6 characters'); return }
     setCreating(true)
 
-    const { data: { session: ownerSession } } = await supabase.auth.getSession()
+    // Get the requester's ID (the owner/admin who's creating this staff)
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (!currentUser) { showToast('Not signed in'); setCreating(false); return }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: { data: { full_name: form.name } }
-    })
+    try {
+      const res = await fetch(
+        'https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/create-staff-account',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: form.email.trim().toLowerCase(),
+            password: form.password,
+            full_name: form.name.trim(),
+            property_id: form.property_id,
+            requester_id: currentUser.id
+          })
+        }
+      )
+      const result = await res.json()
 
-    if (error) { showToast('Error: ' + error.message); setCreating(false); return }
+      if (!res.ok || result.error) {
+        showToast('Error: ' + (result.error || 'Failed to create staff'))
+        setCreating(false)
+        return
+      }
 
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        full_name: form.name,
-        role: 'staff',
-        property_id: form.property_id,
-        is_admin: false,
-        permissions: DEFAULT_PERMISSIONS
-      })
+      showToast('Staff account created!')
+      setShowCreate(false)
+      setForm({ name: '', email: '', password: '', property_id: propertyId || '' })
+      setCreating(false)
+      load()
+    } catch (e) {
+      showToast('Network error: ' + e.message)
+      setCreating(false)
     }
-
-    if (ownerSession) {
-      await supabase.auth.setSession({
-        access_token: ownerSession.access_token,
-        refresh_token: ownerSession.refresh_token
-      })
-    }
-
-    showToast('Staff account created!')
-    setShowCreate(false)
-    setForm({ name: '', email: '', password: '', property_id: propertyId || '' })
-    setCreating(false)
-    load()
   }
 
   const handleRemove = async (staffId) => {
