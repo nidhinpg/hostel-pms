@@ -131,10 +131,10 @@ export default function StaffManager({ propertyId, onUpgradeClick }) {
           })
         }
       )
-      const result = await res.json()
+      const result = await res.json().catch(() => ({}))
 
       if (!res.ok || result.error) {
-        showToast('Error: ' + (result.error || 'Failed to create staff'))
+        showToast('Error (' + res.status + '): ' + (result.error || result.message || 'Failed to create staff'))
         setCreating(false)
         return
       }
