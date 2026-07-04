@@ -128,7 +128,15 @@ export default function StaffManager({ propertyId, onUpgradeClick }) {
       })
 
       if (fnError) {
-        showToast('Error: ' + (fnError.message || 'Failed to create staff'))
+        // Extract the actual error message from the Edge Function response body
+        let realMsg = fnError.message || 'Failed to create staff'
+        try {
+          if (fnError.context && typeof fnError.context.json === 'function') {
+            const body = await fnError.context.json()
+            if (body?.error) realMsg = body.error
+          }
+        } catch {}
+        showToast('Error: ' + realMsg)
         setCreating(false)
         return
       }
