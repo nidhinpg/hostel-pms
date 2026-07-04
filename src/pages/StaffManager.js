@@ -158,10 +158,37 @@ export default function StaffManager({ propertyId, onUpgradeClick }) {
   }
 
   const handleRemove = async (staffId) => {
-    if (!window.confirm('Remove this staff account?')) return
-    await supabase.from('profiles').update({ role: 'owner', property_id: null }).eq('id', staffId)
-    showToast('Staff removed')
-    load()
+    if (!window.confirm('Remove this staff account? This will permanently delete their login.')) return
+
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (!currentUser) { showToast('Not signed in'); return }
+
+    try {
+      const { data: result, error: fnError } = await supabase.functions.invoke('delete-staff-account', {
+        body: { staff_id: staffId, requester_id: currentUser.id }
+      })
+
+      if (fnError) {
+        let realMsg = fnError.message || 'Failed to remove staff'
+        try {
+          if (fnError.context && typeof fnError.context.json === 'function') {
+            const body = await fnError.context.json()
+            if (body?.error) realMsg = body.error
+          }
+        } catch {}
+        showToast('Error: ' + realMsg)
+        return
+      }
+      if (result?.error) {
+        showToast('Error: ' + result.error)
+        return
+      }
+
+      showToast('Staff removed')
+      load()
+    } catch (e) {
+      showToast('Network error: ' + e.message)
+    }
   }
 
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
