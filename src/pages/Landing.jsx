@@ -19,7 +19,7 @@ export default function Landing() {
             <a href="#features">Features</a>
             <a href="#pricing">Pricing</a>
             <a href="/app" className="btn" style={{ padding: '7px 14px' }}>Log in</a>
-            <a href="#pricing" className="btn btn-primary" style={{ padding: '8px 16px' }}>Sign up</a>
+            <a href="#pricing" className="btn" style={{ padding: '8px 16px', background: '#1a1916', color: '#ffffff', borderColor: '#1a1916' }}>Sign up</a>
           </div>
         </div>
       </nav>
@@ -30,7 +30,7 @@ export default function Landing() {
           <h1>Run your property without an Excel sheet that's one formula away from breaking.</h1>
           <p className="lead">Pavio is a simple, affordable PMS built by a working hostel operator — bed tracking, rent collection, and staff management, priced for properties that can't justify a hotel-chain platform.</p>
           <div className="hero-ctas">
-            <a href="#pricing" className="btn btn-primary">Sign up</a>
+            <a href="#pricing" className="btn" style={{ background: '#1a1916', color: '#ffffff', borderColor: '#1a1916' }}>Sign up</a>
           </div>
           <div className="hero-note">No card required &middot; 15-day trial &middot; set up your first property in under 10 minutes</div>
         </div>
@@ -43,7 +43,7 @@ export default function Landing() {
           <div className="mock-body">
             <div className="mock-head">
               <h4>Bed map</h4>
-              <span className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '12.5px' }}>+ Add bed</span>
+              <span className="btn" style={{ padding: '6px 14px', fontSize: '12.5px', background: '#1a1916', color: '#ffffff', borderColor: '#1a1916' }}>+ Add bed</span>
             </div>
             <div className="mock-summary">
               <span className="mock-pill badge-green">34 Occupied</span>
