@@ -236,11 +236,23 @@ function AppContent() {
   // Shown after login for anyone on a trial plan.
   // Session-scoped (sessionStorage) so dismissing hides it until next login/tab-close.
   useEffect(() => {
-    if (!activeProperty || !user || isAdmin || isStaff) return
-    if (activeProperty.plan_type !== 'trial') return
+    console.log('[POPUP DEBUG]', {
+      activeProperty,
+      user_id: user?.id,
+      isAdmin,
+      isStaff,
+      plan_type: activeProperty?.plan_type,
+      trial_end_date: activeProperty?.trial_end_date
+    })
+    if (!activeProperty) { console.log('[POPUP] blocked: no activeProperty'); return }
+    if (!user) { console.log('[POPUP] blocked: no user'); return }
+    if (isAdmin) { console.log('[POPUP] blocked: isAdmin'); return }
+    if (isStaff) { console.log('[POPUP] blocked: isStaff'); return }
+    if (activeProperty.plan_type !== 'trial') { console.log('[POPUP] blocked: plan is', activeProperty.plan_type); return }
 
     const shownKey = `upgrade_shown_${activeProperty.id}`
-    if (sessionStorage.getItem(shownKey)) return
+    if (sessionStorage.getItem(shownKey)) { console.log('[POPUP] blocked: already shown this session'); return }
+    console.log('[POPUP] ✅ WILL SHOW in 800ms')
 
     // Small delay so it doesn't feel abrupt right at login
     const t = setTimeout(() => {
