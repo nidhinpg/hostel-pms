@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
@@ -139,9 +139,41 @@ function SettingsModal({ onClose, activeProperty, onSaved }) {
 
 // ─── Upgrade Modal ────────────────────────────────────────────────────────────
 function UpgradeModal({ onClose, activeProperty }) {
+  // Calculate trial days remaining (if on trial)
+  const trialEnd = activeProperty?.trial_end_date ? new Date(activeProperty.trial_end_date) : null
+  const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24))) : null
+  const isTrial = activeProperty?.plan_type === 'trial'
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 20 }} onClick={onClose}>
-      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 28, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 28, minWidth: 320, maxWidth: 440, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', position: 'relative' }} onClick={e => e.stopPropagation()}>
+
+        {/* Dismiss X button */}
+        <button onClick={onClose}
+          style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          aria-label="Close">
+          ×
+        </button>
+
+        {/* Trial-days-remaining banner — shown only for trial users */}
+        {isTrial && daysLeft !== null && (
+          <div style={{
+            background: daysLeft <= 5 ? 'var(--red-bg)' : 'var(--amber-bg)',
+            color: daysLeft <= 5 ? 'var(--red)' : 'var(--amber)',
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 13,
+            fontWeight: 600,
+            textAlign: 'center',
+            marginBottom: 18,
+            marginTop: 4
+          }}>
+            {daysLeft === 0 ? '⏰ Your trial ends today' : daysLeft === 1 ? '⏰ 1 day left in your trial' : `⏰ ${daysLeft} days left in your trial`}
+          </div>
+        )}
+
         <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4, textAlign: 'center' }}>Choose a Plan</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20, textAlign: 'center' }}>{activeProperty?.name}</div>
 
@@ -182,7 +214,9 @@ function UpgradeModal({ onClose, activeProperty }) {
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginBottom: 16 }}>
           ₹1 authorization today, actual charge from next day. Cancel anytime.
         </div>
-        <button className="btn" style={{ width: '100%' }} onClick={onClose}>Cancel</button>
+        <button className="btn" style={{ width: '100%' }} onClick={onClose}>
+          {isTrial ? 'Continue with trial' : 'Cancel'}
+        </button>
       </div>
     </div>
   )
@@ -197,6 +231,24 @@ function AppContent() {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+
+  // ─── Auto-open Upgrade modal for trial users, once per session ─────────
+  // Shown after login for anyone on a trial plan.
+  // Session-scoped (sessionStorage) so dismissing hides it until next login/tab-close.
+  useEffect(() => {
+    if (!activeProperty || !user || isAdmin || isStaff) return
+    if (activeProperty.plan_type !== 'trial') return
+
+    const shownKey = `upgrade_shown_${activeProperty.id}`
+    if (sessionStorage.getItem(shownKey)) return
+
+    // Small delay so it doesn't feel abrupt right at login
+    const t = setTimeout(() => {
+      setShowUpgradeModal(true)
+      sessionStorage.setItem(shownKey, '1')
+    }, 800)
+    return () => clearTimeout(t)
+  }, [activeProperty, user, isAdmin, isStaff])
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
