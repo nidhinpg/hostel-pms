@@ -13,6 +13,7 @@ import ResetPassword from './pages/ResetPassword'
 import './App.css'
 import { Capacitor } from '@capacitor/core'
 import Landing from './pages/Landing'
+import Signup from './pages/Signup'
 
 // ─── Razorpay ────────────────────────────────────────────────────────────────
 const RAZORPAY_KEY = 'rzp_live_T7TrGIeNx4lC0M'
@@ -505,6 +506,11 @@ export default function App() {
   // needs no changes at all.
   if (!isNative && (path === '/' || path === '')) {
     return <Landing />
+  }
+
+  // Self-signup page for new hostel owners — browsers only.
+  if (!isNative && path === '/signup') {
+    return <Signup />
   }
 
   if (path === '/reset-password') {
