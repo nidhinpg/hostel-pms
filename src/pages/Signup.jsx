@@ -136,18 +136,43 @@ export default function Signup() {
           <div className="signup-plan-choice">
             <label className={form.plan === 'trial' ? 'selected' : ''}>
               <input type="radio" name="plan" value="trial" checked={form.plan === 'trial'} onChange={set('plan')} />
-              <span className="signup-plan-name">Trial</span>
-              <span className="signup-plan-price">Free · 15 days</span>
+              <div className="signup-plan-top">
+                <span className="signup-plan-name">Trial</span>
+                <span className="signup-plan-price">Free · 15 days</span>
+              </div>
+              <ul className="signup-plan-feats">
+                <li>1 property, full access</li>
+                <li>Bed map, tenant records, manual rent tracking</li>
+                <li>No card required — try before you decide</li>
+              </ul>
             </label>
+
             <label className={form.plan === 'basic' ? 'selected' : ''}>
               <input type="radio" name="plan" value="basic" checked={form.plan === 'basic'} onChange={set('plan')} />
-              <span className="signup-plan-name">Basic</span>
-              <span className="signup-plan-price">₹499/mo</span>
+              <div className="signup-plan-top">
+                <span className="signup-plan-name">Basic</span>
+                <span className="signup-plan-price">₹499/mo · ₹3,999/yr</span>
+              </div>
+              <ul className="signup-plan-feats">
+                <li>Everything in Trial</li>
+                <li>Tap a button to open WhatsApp, you hit send</li>
+                <li>Finance reports — CSV & PDF export</li>
+              </ul>
             </label>
-            <label className={form.plan === 'pro' ? 'selected' : ''}>
+
+            <label className={'pro ' + (form.plan === 'pro' ? 'selected' : '')}>
               <input type="radio" name="plan" value="pro" checked={form.plan === 'pro'} onChange={set('plan')} />
-              <span className="signup-plan-name">Pro</span>
-              <span className="signup-plan-price">₹999/mo</span>
+              <div className="signup-plan-top">
+                <span className="signup-plan-name">Pro</span>
+                <span className="signup-plan-price">₹999/mo · ₹7,999/yr</span>
+              </div>
+              <ul className="signup-plan-feats">
+                <li><strong>Unlimited properties</strong></li>
+                <li><strong>Fully automatic WhatsApp reminders</strong> — sent daily, no manual work</li>
+                <li>Staff logins with permission controls</li>
+                <li>Push notifications for rent due</li>
+                <li>Priority WhatsApp support</li>
+              </ul>
             </label>
           </div>
 
