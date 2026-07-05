@@ -11,6 +11,8 @@ import AdminPanel from './pages/AdminPanel'
 import StaffManager from './pages/StaffManager'
 import ResetPassword from './pages/ResetPassword'
 import './App.css'
+import { Capacitor } from '@capacitor/core'
+import Landing from './pages/Landing'
 
 // ─── Razorpay ────────────────────────────────────────────────────────────────
 const RAZORPAY_KEY = 'rzp_live_T7TrGIeNx4lC0M'
@@ -494,7 +496,18 @@ function AppContent() {
 }
 
 export default function App() {
-  if (window.location.pathname === '/reset-password') {
+  const path = window.location.pathname
+  const isNative = Capacitor.isNativePlatform()
+
+  // Marketing landing page — only for web browsers hitting the root URL.
+  // The installed Android app (Capacitor) always skips this and goes
+  // straight into the existing login/dashboard flow, so the current APK
+  // needs no changes at all.
+  if (!isNative && (path === '/' || path === '')) {
+    return <Landing />
+  }
+
+  if (path === '/reset-password') {
     return (
       <AuthProvider>
         <AppContent />
