@@ -19,7 +19,7 @@ export default function Landing() {
             <a href="#features">Features</a>
             <a href="#pricing">Pricing</a>
             <a href="/app" className="btn" style={{ padding: '7px 14px' }}>Log in</a>
-            <a href="#pricing" className="btn" style={{ padding: '8px 16px', background: '#1a1916', color: '#ffffff', borderColor: '#1a1916' }}>Sign up</a>
+            <a href="/signup" className="btn" style={{ padding: '8px 16px', background: '#1a1916', color: '#ffffff', borderColor: '#1a1916' }}>Sign up</a>
           </div>
         </div>
       </nav>
@@ -30,7 +30,7 @@ export default function Landing() {
           <h1>Run your property without an Excel sheet that's one formula away from breaking.</h1>
           <p className="lead">Pavio is a simple, affordable PMS built by a working hostel operator — bed tracking, rent collection, and staff management, priced for properties that can't justify a hotel-chain platform.</p>
           <div className="hero-ctas">
-            <a href="#pricing" className="btn" style={{ background: '#1a1916', color: '#ffffff', borderColor: '#1a1916' }}>Sign up</a>
+            <a href="/signup" className="btn" style={{ background: '#1a1916', color: '#ffffff', borderColor: '#1a1916' }}>Sign up</a>
           </div>
           <div className="hero-note">No card required &middot; 15-day trial &middot; set up your first property in under 10 minutes</div>
         </div>
@@ -165,7 +165,7 @@ export default function Landing() {
               <li>Manual rent tracking</li>
               <li>Email support</li>
             </ul>
-            <a href="/app" className="btn">Sign up</a>
+            <a href="/signup" className="btn">Sign up</a>
           </div>
           <div className="card price-card">
             <div className="price-top"><span className="price-tier">Basic</span></div>
@@ -176,7 +176,7 @@ export default function Landing() {
               <li>Tap a button to open WhatsApp, you hit send</li>
               <li>Finance reports — CSV & PDF export</li>
             </ul>
-            <a href="/app" className="btn">Choose Basic</a>
+            <a href="/signup" className="btn">Choose Basic</a>
           </div>
           <div className="card price-card pop">
             <div className="price-top">
@@ -192,7 +192,7 @@ export default function Landing() {
               <li>Push notifications for rent due</li>
               <li>Priority WhatsApp support</li>
             </ul>
-            <a href="/app" className="btn" style={{ background: 'var(--brand)', color: '#fff', borderColor: 'var(--brand)' }}>Choose Pro</a>
+            <a href="/signup" className="btn" style={{ background: 'var(--brand)', color: '#fff', borderColor: 'var(--brand)' }}>Choose Pro</a>
           </div>
         </div>
       </section>
@@ -201,7 +201,7 @@ export default function Landing() {
         <div className="closing">
           <h2>Stop running your hostel from three different apps.</h2>
           <p>Set up your first property in under 10 minutes. No credit card required.</p>
-          <a href="#pricing" className="btn btn-primary" style={{ background: '#fff', color: 'var(--text)', borderColor: '#fff' }}>Sign up</a>
+          <a href="/signup" className="btn btn-primary" style={{ background: '#fff', color: 'var(--text)', borderColor: '#fff' }}>Sign up</a>
         </div>
       </section>
 
