@@ -106,7 +106,4 @@
   .landing .stat:first-child { border-top: none; }
   .landing .nav-links { display: none; }
   .landing .mock-summary { flex-wrap: wrap; }
-.landing .btn-primary,
-.landing .btn-primary:hover {
-  color: #ffffff !important;
-}}
+}
