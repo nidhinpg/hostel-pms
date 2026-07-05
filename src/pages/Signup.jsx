@@ -22,7 +22,6 @@ export default function Signup() {
     city: '',
     gpay_number: '',
     address: '',
-    plan: 'trial',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -131,55 +130,8 @@ export default function Signup() {
             <textarea value={form.address} onChange={set('address')} rows={2} placeholder="Property address (optional)" />
           </div>
 
-          <div className="signup-section">Choose a plan</div>
-
-          <div className="signup-plan-choice">
-            <label className={form.plan === 'trial' ? 'selected' : ''}>
-              <input type="radio" name="plan" value="trial" checked={form.plan === 'trial'} onChange={set('plan')} />
-              <div className="signup-plan-top">
-                <span className="signup-plan-name">Trial</span>
-                <span className="signup-plan-price">Free · 15 days</span>
-              </div>
-              <ul className="signup-plan-feats">
-                <li>1 property, full access</li>
-                <li>Bed map, tenant records, manual rent tracking</li>
-                <li>No card required — try before you decide</li>
-              </ul>
-            </label>
-
-            <label className={form.plan === 'basic' ? 'selected' : ''}>
-              <input type="radio" name="plan" value="basic" checked={form.plan === 'basic'} onChange={set('plan')} />
-              <div className="signup-plan-top">
-                <span className="signup-plan-name">Basic</span>
-                <span className="signup-plan-price">₹499/mo · ₹3,999/yr</span>
-              </div>
-              <ul className="signup-plan-feats">
-                <li>Everything in Trial</li>
-                <li>Tap a button to open WhatsApp, you hit send</li>
-                <li>Finance reports — CSV & PDF export</li>
-              </ul>
-            </label>
-
-            <label className={'pro ' + (form.plan === 'pro' ? 'selected' : '')}>
-              <input type="radio" name="plan" value="pro" checked={form.plan === 'pro'} onChange={set('plan')} />
-              <div className="signup-plan-top">
-                <span className="signup-plan-name">Pro</span>
-                <span className="signup-plan-price">₹999/mo · ₹7,999/yr</span>
-              </div>
-              <ul className="signup-plan-feats">
-                <li><strong>Unlimited properties</strong></li>
-                <li><strong>Fully automatic WhatsApp reminders</strong> — sent daily, no manual work</li>
-                <li>Staff logins with permission controls</li>
-                <li>Push notifications for rent due</li>
-                <li>Priority WhatsApp support</li>
-              </ul>
-            </label>
-          </div>
-
-          <div className="signup-note">
-            {form.plan === 'trial'
-              ? 'You can upgrade to Basic or Pro anytime from inside the app.'
-              : 'Your account starts on a 15-day free trial. Payment is collected only after that.'}
+          <div className="signup-note" style={{ marginTop: 20 }}>
+            Your account starts with a <strong style={{ color: 'var(--text)' }}>15-day free trial</strong> — full access, no card needed. Upgrade to Basic or Pro anytime from inside the app.
           </div>
 
           <button type="submit" className="signup-submit" disabled={loading}>
