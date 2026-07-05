@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { Capacitor } from '@capacitor/core'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -12,6 +13,10 @@ export default function Login() {
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  // Only show the "Sign up" link in web browsers, not inside the Android app.
+  // (Inside the app, /signup is not a route — new-owner self-signup happens on pavio.tech.)
+  const isNative = Capacitor.isNativePlatform()
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -188,9 +193,24 @@ export default function Login() {
           )}
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 20 }}>
-          Access is by invitation only. Contact your administrator.
-        </p>
+        {/* Sign up link — only shown on the web (pavio.tech). Hidden inside the mobile app. */}
+        {!isNative && mode === 'login' && (
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginTop: 20 }}>
+            New to Pavio?{' '}
+            <a
+              href="/signup"
+              style={{ color: '#D85A30', fontWeight: 600, textDecoration: 'none' }}>
+              Create an account
+            </a>
+          </p>
+        )}
+
+        {/* App-only footer message (mobile app users are typically staff/owners added by an admin) */}
+        {isNative && (
+          <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 20 }}>
+            Don't have an account? Visit pavio.tech to sign up.
+          </p>
+        )}
       </div>
     </div>
   )
