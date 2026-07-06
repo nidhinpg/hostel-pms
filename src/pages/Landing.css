@@ -104,6 +104,7 @@
   .landing .stats-inner { grid-template-columns: 1fr; }
   .landing .stat { border-left: none; border-top: 1px solid var(--border); }
   .landing .stat:first-child { border-top: none; }
-  .landing .nav-links { display: none; }
+  .landing .nav-links a:not(.btn) { display: none; }
+  .landing .nav-links { gap: 8px; }
   .landing .mock-summary { flex-wrap: wrap; }
 }
