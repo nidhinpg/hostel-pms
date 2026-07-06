@@ -230,7 +230,7 @@ function AppContent() {
             </div>
 
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 16 }}>₹1 authorization today, actual charge from next day. Cancel anytime.</div>
-            <a href={`https://wa.me/917012160141?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Pavio%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
+            <a href={`https://wa.me/919778776405?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Pavio%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
               target="_blank" rel="noreferrer"
               style={{ display: 'inline-block', color: 'var(--text-secondary)', fontSize: 13, textDecoration: 'none', marginBottom: 12 }}>
               💬 Contact on WhatsApp instead
