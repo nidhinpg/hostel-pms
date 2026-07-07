@@ -197,17 +197,27 @@ export default function Login() {
         {!isNative && mode === 'login' && (
           <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginTop: 20 }}>
             New to Pavio?{' '}
-            <a
-              href="/signup"
-              style={{ color: '#D85A30', fontWeight: 600, textDecoration: 'none' }}>
+            <a href="/signup" style={{ color: '#D85A30', fontWeight: 600, textDecoration: 'none' }}>
               Create an account
             </a>
           </p>
         )}
 
-        {/* App-only footer message (mobile app users are typically staff/owners added by an admin) */}
+        {/* Support contact — shown on both web and app */}
+        {mode === 'login' && (
+          <div style={{ textAlign: 'center', marginTop: 16, display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <a href="mailto:support@pavio.tech" style={{ fontSize: 12, color: 'var(--text-tertiary)', textDecoration: 'none' }}>
+              ✉ support@pavio.tech
+            </a>
+            <a href="https://wa.me/919778776405" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--text-tertiary)', textDecoration: 'none' }}>
+              💬 WhatsApp support
+            </a>
+          </div>
+        )}
+
+        {/* App-only footer message */}
         {isNative && (
-          <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 20 }}>
+          <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>
             Don't have an account? Visit pavio.tech to sign up.
           </p>
         )}
