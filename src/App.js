@@ -507,6 +507,21 @@ function AppContent() {
                   </div>
                 )}
 
+                {/* Support */}
+                <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                <a href="mailto:support@pavio.tech"
+                  style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  ✉️ support@pavio.tech
+                </a>
+                <a href="https://wa.me/919778776405" target="_blank" rel="noreferrer"
+                  style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  💬 WhatsApp support
+                </a>
+
                 {/* Sign out */}
                 <div onClick={() => { signOut(); setShowUserMenu(false) }}
                   style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, color: 'var(--red)' }}
