@@ -208,7 +208,15 @@ export default function Landing() {
       <footer>
         <div className="wrap foot-inner">
           <span className="logo" style={{ fontSize: '14.5px', color: 'var(--text)' }}>{LOGO} pavio</span>
-          <span>&copy; 2026 Pavio</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <a href="mailto:support@pavio.tech" style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              ✉ support@pavio.tech
+            </a>
+            <a href="https://wa.me/919778776405" target="_blank" rel="noreferrer" style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              💬 WhatsApp
+            </a>
+            <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>&copy; 2026 Pavio</span>
+          </div>
         </div>
       </footer>
     </div>
