@@ -230,7 +230,7 @@ const paidIds = (paymentsRes.data || [])
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span className="section-title">Bed utilization</span>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{occupied} of {total} beds</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{occupied} of {total} beds · <span style={{ color: 'var(--green)' }}>{total - occupied} vacant</span></span>
         </div>
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: total ? (occupied / total * 100) + '%' : '0%' }} />
