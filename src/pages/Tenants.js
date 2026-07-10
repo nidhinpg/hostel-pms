@@ -16,6 +16,7 @@ function currentDate() {
 
 export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all', canAddTenants = false, canCollectRent = false, canDeleteEntries = false }) {
   const { activeProperty } = useAuth()
+  const isPro = activeProperty?.plan_type === 'pro'
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
@@ -132,18 +133,37 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
     // Show receipt popup instead of auto-opening WhatsApp
     if (selectedTenant.phone) {
-      setReceiptData({
-        phone: selectedTenant.phone,
-        name: selectedTenant.name,
-        bed: selectedTenant.bed_id,
-        amount,
-        date: collectDate,
-        month,
-        isPartial: isPartialPay && !!daysPaid,
-        days: daysPaid,
-        from: selectedTenant.movein_date,
-        till: stayEndDate
-      })
+      if (isPro) {
+        // Pro plan: send receipt automatically via Edge Function
+        fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/send-payment-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: selectedTenant.id,
+            property_id: propertyId,
+            amount,
+            paid_date: collectDate,
+            month
+          })
+        }).then(r => r.json()).then(result => {
+          if (result.success) showToast(`Receipt sent to ${selectedTenant.name.split(' ')[0]} on WhatsApp`)
+          else if (!result.skipped) console.log('[receipt] error:', result.error)
+        }).catch(e => console.log('[receipt] fetch error:', e))
+      } else {
+        // Basic plan: show manual popup
+        setReceiptData({
+          phone: selectedTenant.phone,
+          name: selectedTenant.name,
+          bed: selectedTenant.bed_id,
+          amount,
+          date: collectDate,
+          month,
+          isPartial: isPartialPay && !!daysPaid,
+          days: daysPaid,
+          from: selectedTenant.movein_date,
+          till: stayEndDate
+        })
+      }
     }
 
     showToast(`Rent collected from ${selectedTenant.name}`)
