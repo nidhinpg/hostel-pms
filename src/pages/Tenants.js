@@ -297,6 +297,13 @@ Thank you! — ${hostelName}`
     showToast('CSV downloaded!')
   }
 
+  const loadScript = (src) => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve()
+    const s = document.createElement('script')
+    s.src = src; s.onload = resolve; s.onerror = reject
+    document.head.appendChild(s)
+  })
+
   const downloadExcel = async () => {
     const propertyName = activeProperty?.name || 'Property'
     const now = new Date()
@@ -313,29 +320,14 @@ Thank you! — ${hostelName}`
       filename = `${propertyName}-vacated-tenants-${dateStr}.xlsx`
     }
 
-    // Dynamically load SheetJS
-    const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')
+    const XLSX = window.XLSX
 
     const wsData = [headers, ...rows]
     const ws = XLSX.utils.aoa_to_sheet(wsData)
-
-    // Style header row — bold + orange background
-    const range = XLSX.utils.decode_range(ws['!ref'])
-    for (let col = range.s.c; col <= range.e.c; col++) {
-      const cellAddr = XLSX.utils.encode_cell({ r: 0, c: col })
-      if (!ws[cellAddr]) continue
-      ws[cellAddr].s = {
-        font: { bold: true, color: { rgb: 'FFFFFF' } },
-        fill: { fgColor: { rgb: 'D85A30' } },
-        alignment: { horizontal: 'center' }
-      }
-    }
-
-    // Auto column widths
-    ws['!cols'] = headers.map((h, i) => {
-      const maxLen = Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length))
-      return { wch: Math.min(maxLen + 2, 30) }
-    })
+    ws['!cols'] = headers.map((h, i) => ({
+      wch: Math.min(Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)) + 2, 30)
+    }))
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, sheetName)
@@ -359,16 +351,15 @@ Thank you! — ${hostelName}`
       filename = `${propertyName}-vacated-tenants-${dateStr}.pdf`
     }
 
-    // Dynamically load jsPDF + autoTable
-    const { jsPDF } = await import('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
-    await import('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js')
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js')
 
+    const { jsPDF } = window.jspdf
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
-    // Header
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(216, 90, 48) // #D85A30
+    doc.setTextColor(216, 90, 48)
     doc.text('Pavio PMS', 14, 14)
 
     doc.setFontSize(11)
@@ -380,17 +371,12 @@ Thank you! — ${hostelName}`
     doc.setTextColor(120, 120, 120)
     doc.text(`Downloaded: ${dateStr}  |  Month: ${month}`, 14, 29)
 
-    // Table
     doc.autoTable({
       head: [headers],
       body: rows,
       startY: 34,
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: {
-        fillColor: [216, 90, 48],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold'
-      },
+      headStyles: { fillColor: [216, 90, 48], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [247, 246, 243] },
       margin: { left: 14, right: 14 }
     })
