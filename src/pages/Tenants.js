@@ -22,7 +22,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [vacantBeds, setVacantBeds] = useState([])
   const [rentPayments, setRentPayments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
+  const [showExport, setShowExport] = useState(false)
   const [showCollect, setShowCollect] = useState(false)
   const [showVacate, setShowVacate] = useState(false)
   const [selectedTenant, setSelectedTenant] = useState(null)
@@ -412,9 +412,7 @@ Thank you! — ${hostelName}`
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={downloadCSV} title="Download as CSV">⬇ CSV</button>
-          <button className="btn" onClick={downloadExcel} title="Download as Excel">⬇ Excel</button>
-          <button className="btn" onClick={downloadPDF} title="Download as PDF">⬇ PDF</button>
+          <button className="btn" onClick={() => setShowExport(true)}>↓ Export</button>
           {(!isStaff || canAddTenants) && tab === 'active' && (
             <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
           )}
@@ -733,6 +731,54 @@ Thank you! — ${hostelName}`
               onClick={() => setReceiptData(null)}>
               WhatsApp ↗
             </a>
+          </div>
+        </div>
+      )}
+
+      {/* EXPORT MODAL */}
+      {showExport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 20 }}
+          onClick={() => setShowExport(false)}>
+          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 24, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Export tenants</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              {tab === 'active'
+                ? `Exporting ${tenants.length} active tenants · Month: ${month}`
+                : `Exporting ${vacatedTenants.length} vacated tenants`}
+            </div>
+
+            {/* CSV */}
+            <button onClick={() => { downloadCSV(); setShowExport(false) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10, background: 'var(--text)', color: 'white', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ fontSize: 22 }}>📊</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Download as CSV</div>
+                <div style={{ fontSize: 12, opacity: 0.75 }}>Open in Excel or Google Sheets</div>
+              </div>
+            </button>
+
+            {/* Excel */}
+            <button onClick={() => { downloadExcel(); setShowExport(false) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ fontSize: 22 }}>📗</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Download as Excel</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Formatted .xlsx file with headers</div>
+              </div>
+            </button>
+
+            {/* PDF */}
+            <button onClick={() => { downloadPDF(); setShowExport(false) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ fontSize: 22 }}>📄</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Download as PDF</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Printable tenant report</div>
+              </div>
+            </button>
+
+            <button className="btn" style={{ width: '100%' }} onClick={() => setShowExport(false)}>Close</button>
           </div>
         </div>
       )}
