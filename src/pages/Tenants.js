@@ -16,11 +16,13 @@ function currentDate() {
 
 export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all', canAddTenants = false, canCollectRent = false, canDeleteEntries = false }) {
   const { activeProperty } = useAuth()
+  const isPro = activeProperty?.plan_type === 'pro' || activeProperty?.plan_type === 'owned'
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
   const [rentPayments, setRentPayments] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showExport, setShowExport] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [showCollect, setShowCollect] = useState(false)
   const [showVacate, setShowVacate] = useState(false)
@@ -132,18 +134,36 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
     // Show receipt popup instead of auto-opening WhatsApp
     if (selectedTenant.phone) {
-      setReceiptData({
-        phone: selectedTenant.phone,
-        name: selectedTenant.name,
-        bed: selectedTenant.bed_id,
-        amount,
-        date: collectDate,
-        month,
-        isPartial: isPartialPay && !!daysPaid,
-        days: daysPaid,
-        from: selectedTenant.movein_date,
-        till: stayEndDate
-      })
+      if (isPro) {
+        // Pro plan: send receipt automatically via Edge Function
+        supabase.functions.invoke('send-payment-receipt', {
+          body: {
+            tenant_id: selectedTenant.id,
+            property_id: propertyId,
+            amount,
+            paid_date: collectDate,
+            month
+          }
+        }).then(({ data, error }) => {
+          if (error) console.log('[receipt] error:', error)
+          else if (data?.success) showToast(`Receipt sent to ${selectedTenant.name.split(' ')[0]} on WhatsApp`)
+          else if (!data?.skipped) console.log('[receipt] failed:', data)
+        }).catch(e => console.log('[receipt] invoke error:', e))
+      } else {
+        // Basic plan: show manual popup
+        setReceiptData({
+          phone: selectedTenant.phone,
+          name: selectedTenant.name,
+          bed: selectedTenant.bed_id,
+          amount,
+          date: collectDate,
+          month,
+          isPartial: isPartialPay && !!daysPaid,
+          days: daysPaid,
+          from: selectedTenant.movein_date,
+          till: stayEndDate
+        })
+      }
     }
 
     showToast(`Rent collected from ${selectedTenant.name}`)
@@ -224,6 +244,148 @@ Thank you! — ${hostelName}`
 
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
+  const escape = val => `"${String(val ?? '').replace(/"/g, '""')}"`
+  const toCSV = (headers, rows) => [
+    headers.map(escape).join(','),
+    ...rows.map(r => r.map(escape).join(','))
+  ].join('\n')
+
+  const getActiveRows = () => {
+    const headers = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Monthly Rent', 'Advance', 'Payment Status', 'Amount Paid']
+    const rows = tenants.map(t => {
+      const payment = rentPayments.find(p => p.tenant_id === t.id)
+      const status = getRentStatus(t)
+      return [
+        t.name, t.phone || '', t.aadhar || '', t.bed_id || '',
+        t.movein_date || '', t.rent || '', t.advance || '',
+        status === 'paid' ? 'Paid' : status === 'due' ? 'Due' : 'Upcoming',
+        payment ? payment.amount : ''
+      ]
+    })
+    return { headers, rows }
+  }
+
+  const getVacatedRows = () => {
+    const headers = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Vacate Date', 'Monthly Rent', 'Advance']
+    const rows = vacatedTenants.map(t => [
+      t.name, t.phone || '', t.aadhar || '', t.bed_id || '',
+      t.movein_date || '', t.vacate_date || '', t.rent || '', t.advance || ''
+    ])
+    return { headers, rows }
+  }
+
+  const downloadCSV = () => {
+    const propertyName = activeProperty?.name || 'Property'
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+    let content, filename
+    if (tab === 'active') {
+      const { headers, rows } = getActiveRows()
+      content = [`Pavio — ${propertyName}`, `Downloaded: ${dateStr}`, `Month: ${month}`, '', toCSV(headers, rows)].join('\n')
+      filename = `${propertyName}-active-tenants-${dateStr}.csv`
+    } else {
+      const { headers, rows } = getVacatedRows()
+      content = [`Pavio — ${propertyName}`, `Downloaded: ${dateStr}`, '', toCSV(headers, rows)].join('\n')
+      filename = `${propertyName}-vacated-tenants-${dateStr}.csv`
+    }
+
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+    showToast('CSV downloaded!')
+  }
+
+  const loadScript = (src) => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve()
+    const s = document.createElement('script')
+    s.src = src; s.onload = resolve; s.onerror = reject
+    document.head.appendChild(s)
+  })
+
+  const downloadExcel = async () => {
+    const propertyName = activeProperty?.name || 'Property'
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+    let headers, rows, sheetName, filename
+    if (tab === 'active') {
+      const d = getActiveRows(); headers = d.headers; rows = d.rows
+      sheetName = 'Active Tenants'
+      filename = `${propertyName}-active-tenants-${dateStr}.xlsx`
+    } else {
+      const d = getVacatedRows(); headers = d.headers; rows = d.rows
+      sheetName = 'Vacated History'
+      filename = `${propertyName}-vacated-tenants-${dateStr}.xlsx`
+    }
+
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')
+    const XLSX = window.XLSX
+
+    const wsData = [headers, ...rows]
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    ws['!cols'] = headers.map((h, i) => ({
+      wch: Math.min(Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)) + 2, 30)
+    }))
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, sheetName)
+    XLSX.writeFile(wb, filename)
+    showToast('Excel downloaded!')
+  }
+
+  const downloadPDF = async () => {
+    const propertyName = activeProperty?.name || 'Property'
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+    let headers, rows, title, filename
+    if (tab === 'active') {
+      const d = getActiveRows(); headers = d.headers; rows = d.rows
+      title = `Active Tenants — ${propertyName}`
+      filename = `${propertyName}-active-tenants-${dateStr}.pdf`
+    } else {
+      const d = getVacatedRows(); headers = d.headers; rows = d.rows
+      title = `Vacated History — ${propertyName}`
+      filename = `${propertyName}-vacated-tenants-${dateStr}.pdf`
+    }
+
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js')
+
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(216, 90, 48)
+    doc.text('Pavio PMS', 14, 14)
+
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(30, 25, 22)
+    doc.text(title, 14, 22)
+
+    doc.setFontSize(9)
+    doc.setTextColor(120, 120, 120)
+    doc.text(`Downloaded: ${dateStr}  |  Month: ${month}`, 14, 29)
+
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: 34,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [216, 90, 48], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [247, 246, 243] },
+      margin: { left: 14, right: 14 }
+    })
+
+    doc.save(filename)
+    showToast('PDF downloaded!')
+  }
+
   if (loading) return <div className="loading">Loading tenants...</div>
 
   const paidThisMonth = tenants.filter(t => isPaid(t.id)).length
@@ -250,9 +412,12 @@ Thank you! — ${hostelName}`
     <div>
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
-        {(!isStaff || canAddTenants) && tab === 'active' && (
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => setShowExport(true)}>↓ Export</button>
+          {(!isStaff || canAddTenants) && tab === 'active' && (
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
+          )}
+        </div>
       </div>
 
       {/* Main tabs */}
@@ -567,6 +732,44 @@ Thank you! — ${hostelName}`
               onClick={() => setReceiptData(null)}>
               WhatsApp ↗
             </a>
+          </div>
+        </div>
+      )}
+
+      {/* EXPORT MODAL */}
+      {showExport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 20 }}
+          onClick={() => setShowExport(false)}>
+          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 24, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Export tenants</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              {tab === 'active'
+                ? `Exporting ${tenants.length} active tenants · Month: ${month}`
+                : `Exporting ${vacatedTenants.length} vacated tenants`}
+            </div>
+
+            {/* CSV */}
+            <button onClick={() => { downloadCSV(); setShowExport(false) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10, background: 'var(--text)', color: 'white', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ fontSize: 22 }}>📊</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Download as CSV</div>
+                <div style={{ fontSize: 12, opacity: 0.75 }}>Open in Excel or Google Sheets</div>
+              </div>
+            </button>
+
+            {/* PDF */}
+            <button onClick={() => { downloadPDF(); setShowExport(false) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ fontSize: 22 }}>📄</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Download as PDF</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Printable tenant report</div>
+              </div>
+            </button>
+
+            <button className="btn" style={{ width: '100%' }} onClick={() => setShowExport(false)}>Close</button>
           </div>
         </div>
       )}

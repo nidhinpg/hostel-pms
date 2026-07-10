@@ -1,8 +1,15 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "build",
-  "framework": "create-react-app",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://pavio.tech/$1",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "hostel-pms-azure.vercel.app"
+        }
+      ]
+    }
   ]
 }
