@@ -759,16 +759,6 @@ Thank you! — ${hostelName}`
               </div>
             </button>
 
-            {/* Excel */}
-            <button onClick={() => { downloadExcel(); setShowExport(false) }}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 10, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left' }}>
-              <span style={{ fontSize: 22 }}>📗</span>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>Download as Excel</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Formatted .xlsx file with headers</div>
-              </div>
-            </button>
-
             {/* PDF */}
             <button onClick={() => { downloadPDF(); setShowExport(false) }}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', marginBottom: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left' }}>
