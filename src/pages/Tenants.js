@@ -16,7 +16,7 @@ function currentDate() {
 
 export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all', canAddTenants = false, canCollectRent = false, canDeleteEntries = false }) {
   const { activeProperty } = useAuth()
-  const isPro = activeProperty?.plan_type === 'pro'
+  const isPro = activeProperty?.plan_type === 'pro' || activeProperty?.plan_type === 'owned'
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
