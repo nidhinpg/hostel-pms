@@ -135,20 +135,19 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     if (selectedTenant.phone) {
       if (isPro) {
         // Pro plan: send receipt automatically via Edge Function
-        fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/send-payment-receipt', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        supabase.functions.invoke('send-payment-receipt', {
+          body: {
             tenant_id: selectedTenant.id,
             property_id: propertyId,
             amount,
             paid_date: collectDate,
             month
-          })
-        }).then(r => r.json()).then(result => {
-          if (result.success) showToast(`Receipt sent to ${selectedTenant.name.split(' ')[0]} on WhatsApp`)
-          else if (!result.skipped) console.log('[receipt] error:', result.error)
-        }).catch(e => console.log('[receipt] fetch error:', e))
+          }
+        }).then(({ data, error }) => {
+          if (error) console.log('[receipt] error:', error)
+          else if (data?.success) showToast(`Receipt sent to ${selectedTenant.name.split(' ')[0]} on WhatsApp`)
+          else if (!data?.skipped) console.log('[receipt] failed:', data)
+        }).catch(e => console.log('[receipt] invoke error:', e))
       } else {
         // Basic plan: show manual popup
         setReceiptData({
