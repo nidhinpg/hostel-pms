@@ -1,11 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+
 const config: CapacitorConfig = {
-  appId: 'com.hosteloops.pms',
-  appName: 'Hosteloops PMS',
+  appId: 'com.pavio.app',
+  appName: 'Pavio',
   webDir: 'build',
   server: {
-    url: 'https://hostel-pms-azure.vercel.app',
-    cleartext: true
+    url: 'https://www.pavio.tech',
+    cleartext: false
   }
 };
+
 export default config;
