@@ -297,63 +297,106 @@ Thank you! — ${hostelName}`
     showToast('CSV downloaded!')
   }
 
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
     const propertyName = activeProperty?.name || 'Property'
     const now = new Date()
     const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
 
     let headers, rows, sheetName, filename
     if (tab === 'active') {
-      const d = getActiveRows()
-      headers = d.headers; rows = d.rows
+      const d = getActiveRows(); headers = d.headers; rows = d.rows
       sheetName = 'Active Tenants'
       filename = `${propertyName}-active-tenants-${dateStr}.xlsx`
     } else {
-      const d = getVacatedRows()
-      headers = d.headers; rows = d.rows
+      const d = getVacatedRows(); headers = d.headers; rows = d.rows
       sheetName = 'Vacated History'
       filename = `${propertyName}-vacated-tenants-${dateStr}.xlsx`
     }
 
-    // Build a simple Excel XML (SpreadsheetML) — no library needed
-    const cell = (val, type = 'String') => {
-      const v = String(val ?? '')
-      if (type === 'Number' && !isNaN(v) && v !== '') {
-        return `<Cell><Data ss:Type="Number">${v}</Data></Cell>`
+    // Dynamically load SheetJS
+    const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
+
+    const wsData = [headers, ...rows]
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+    // Style header row — bold + orange background
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: 0, c: col })
+      if (!ws[cellAddr]) continue
+      ws[cellAddr].s = {
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: 'D85A30' } },
+        alignment: { horizontal: 'center' }
       }
-      return `<Cell><Data ss:Type="String">${v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</Data></Cell>`
     }
-    const headerRow = `<Row>${headers.map(h => cell(h)).join('')}</Row>`
-    const dataRows = rows.map(r => `<Row>${r.map((v, i) => {
-      const numCols = headers[i] === 'Monthly Rent' || headers[i] === 'Advance' || headers[i] === 'Amount Paid'
-      return cell(v, numCols ? 'Number' : 'String')
-    }).join('')}</Row>`).join('')
 
-    const xml = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
-  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-  <Styles>
-    <Style ss:ID="header">
-      <Font ss:Bold="1"/>
-      <Interior ss:Color="#D85A30" ss:Pattern="Solid"/>
-      <Font ss:Color="#FFFFFF" ss:Bold="1"/>
-    </Style>
-  </Styles>
-  <Worksheet ss:Name="${sheetName}">
-    <Table>
-      <Row>${headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
-      ${dataRows}
-    </Table>
-  </Worksheet>
-</Workbook>`
+    // Auto column widths
+    ws['!cols'] = headers.map((h, i) => {
+      const maxLen = Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length))
+      return { wch: Math.min(maxLen + 2, 30) }
+    })
 
-    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, sheetName)
+    XLSX.writeFile(wb, filename)
     showToast('Excel downloaded!')
+  }
+
+  const downloadPDF = async () => {
+    const propertyName = activeProperty?.name || 'Property'
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+    let headers, rows, title, filename
+    if (tab === 'active') {
+      const d = getActiveRows(); headers = d.headers; rows = d.rows
+      title = `Active Tenants — ${propertyName}`
+      filename = `${propertyName}-active-tenants-${dateStr}.pdf`
+    } else {
+      const d = getVacatedRows(); headers = d.headers; rows = d.rows
+      title = `Vacated History — ${propertyName}`
+      filename = `${propertyName}-vacated-tenants-${dateStr}.pdf`
+    }
+
+    // Dynamically load jsPDF + autoTable
+    const { jsPDF } = await import('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    await import('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js')
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+    // Header
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(216, 90, 48) // #D85A30
+    doc.text('Pavio PMS', 14, 14)
+
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(30, 25, 22)
+    doc.text(title, 14, 22)
+
+    doc.setFontSize(9)
+    doc.setTextColor(120, 120, 120)
+    doc.text(`Downloaded: ${dateStr}  |  Month: ${month}`, 14, 29)
+
+    // Table
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: 34,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: {
+        fillColor: [216, 90, 48],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: { fillColor: [247, 246, 243] },
+      margin: { left: 14, right: 14 }
+    })
+
+    doc.save(filename)
+    showToast('PDF downloaded!')
   }
 
   if (loading) return <div className="loading">Loading tenants...</div>
@@ -383,12 +426,9 @@ Thank you! — ${hostelName}`
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={downloadCSV} title="Download as CSV">
-            ⬇ CSV
-          </button>
-          <button className="btn" onClick={downloadExcel} title="Download as Excel">
-            ⬇ Excel
-          </button>
+          <button className="btn" onClick={downloadCSV} title="Download as CSV">⬇ CSV</button>
+          <button className="btn" onClick={downloadExcel} title="Download as Excel">⬇ Excel</button>
+          <button className="btn" onClick={downloadPDF} title="Download as PDF">⬇ PDF</button>
           {(!isStaff || canAddTenants) && tab === 'active' && (
             <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
           )}
