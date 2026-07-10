@@ -23,6 +23,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [rentPayments, setRentPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showExport, setShowExport] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
   const [showCollect, setShowCollect] = useState(false)
   const [showVacate, setShowVacate] = useState(false)
   const [selectedTenant, setSelectedTenant] = useState(null)
