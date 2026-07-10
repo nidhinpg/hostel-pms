@@ -14,7 +14,7 @@ function currentDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all' }) {
+export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all', canAddTenants = false, canCollectRent = false, canDeleteEntries = false }) {
   const { activeProperty } = useAuth()
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
@@ -250,7 +250,7 @@ Thank you! — ${hostelName}`
     <div>
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
-        {!isStaff && tab === 'active' && (
+        {(!isStaff || canAddTenants) && tab === 'active' && (
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
         )}
       </div>
@@ -359,12 +359,16 @@ Thank you! — ${hostelName}`
                           <td>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {status === 'paid' ? (
-                                <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
-                                  onClick={() => handleUndoPayment(t)}>Undo</button>
+                                (!isStaff || canDeleteEntries) && (
+                                  <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
+                                    onClick={() => handleUndoPayment(t)}>Undo</button>
+                                )
                               ) : status === 'due' ? (
                                 <>
-                                  <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }}
-                                    onClick={() => openCollect(t)}>Collect rent</button>
+                                  {(!isStaff || canCollectRent) && (
+                                    <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }}
+                                      onClick={() => openCollect(t)}>Collect rent</button>
+                                  )}
                                   {t.phone && (
                                     <a href={getWhatsAppMsg(t)} target="_blank" rel="noreferrer"
                                       className="btn" style={{ fontSize: 11, padding: '4px 10px', textDecoration: 'none', color: 'var(--green)', borderColor: '#a8d5bb', background: 'var(--green-bg)' }}>
@@ -373,10 +377,12 @@ Thank you! — ${hostelName}`
                                   )}
                                 </>
                               ) : (
-                                <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
-                                  onClick={() => openCollect(t)}>Collect early</button>
+                                (!isStaff || canCollectRent) && (
+                                  <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
+                                    onClick={() => openCollect(t)}>Collect early</button>
+                                )
                               )}
-                              {!isStaff && (
+                              {(!isStaff || canAddTenants) && (
                                 <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 10px' }}
                                   onClick={() => openVacate(t)}>Vacate</button>
                               )}

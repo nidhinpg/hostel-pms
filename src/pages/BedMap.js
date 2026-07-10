@@ -21,7 +21,9 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
   const [selected, setSelected] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
 
-  const [newBed, setNewBed] = useState({ id: '', status: 'vacant' })
+  const [addMode, setAddMode] = useState('single')
+  const [newBed, setNewBed] = useState({ id: '' })
+  const [bulkBed, setBulkBed] = useState({ room: '', count: 4, startLetter: 'A' })
   const [toast, setToast] = useState('')
 
   const load = useCallback(async () => {
@@ -86,10 +88,20 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
       await supabase.from('tenants').update({ bed_id: null }).in('id', ids)
     }
 
-    // Step 3: Now delete the bed
-    const { error } = await supabase.from('beds').delete().eq('id', selected.id).eq('property_id', propertyId)
+    // Step 3: Now delete the bed — use .select() so we know how many rows were actually deleted
+    const { data: deleted, error } = await supabase
+      .from('beds')
+      .delete()
+      .eq('id', selected.id)
+      .eq('property_id', propertyId)
+      .select()
+
     if (error) {
-      showToast('Error: could not delete bed')
+      showToast('Error: ' + error.message)
+      return
+    }
+    if (!deleted || deleted.length === 0) {
+      showToast('Delete blocked by permissions. Check RLS policy.')
       return
     }
     showToast('Bed deleted')
@@ -101,13 +113,66 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     if (!newBed.id.trim()) return
     const { error } = await supabase.from('beds').insert({
       id: newBed.id.trim().toUpperCase(),
-      status: newBed.status,
+      status: 'vacant',
       property_id: propertyId
     })
     if (error) { showToast('Bed ID already exists'); return }
     showToast('Bed added')
     setShowAdd(false)
-    setNewBed({ id: '', status: 'vacant' })
+    setNewBed({ id: '' })
+    load()
+  }
+
+  const handleBulkAdd = async () => {
+    const room = bulkBed.room.trim().toUpperCase()
+    const count = parseInt(bulkBed.count)
+    const startLetter = (bulkBed.startLetter || 'A').trim().toUpperCase()
+
+    if (!room) { showToast('Enter room number'); return }
+    if (!count || count < 1) { showToast('Enter number of beds'); return }
+    if (!/^[A-Z]$/.test(startLetter)) { showToast('Start letter must be A–Z'); return }
+
+    // Build the list of proposed bed IDs (stops at Z)
+    const startCode = startLetter.charCodeAt(0)
+    const proposed = []
+    for (let i = 0; i < count; i++) {
+      if (startCode + i > 90) break
+      proposed.push(`${room}${String.fromCharCode(startCode + i)}`)
+    }
+    if (proposed.length === 0) { showToast('No beds to add'); return }
+
+    // Check which already exist for this property
+    const { data: existing } = await supabase
+      .from('beds')
+      .select('id')
+      .eq('property_id', propertyId)
+      .in('id', proposed)
+
+    const existingIds = new Set((existing || []).map(b => b.id))
+    const toInsert = proposed.filter(id => !existingIds.has(id))
+
+    if (toInsert.length === 0) {
+      showToast('All these beds already exist')
+      return
+    }
+
+    const rows = toInsert.map(id => ({
+      id,
+      status: 'vacant',
+      property_id: propertyId
+    }))
+
+    const { error } = await supabase.from('beds').insert(rows)
+    if (error) { showToast('Error: ' + error.message); return }
+
+    const skipped = existingIds.size
+    showToast(
+      skipped > 0
+        ? `Added ${toInsert.length} bed${toInsert.length > 1 ? 's' : ''}, skipped ${skipped} duplicate${skipped > 1 ? 's' : ''}`
+        : `Added ${toInsert.length} bed${toInsert.length > 1 ? 's' : ''}`
+    )
+    setShowAdd(false)
+    setBulkBed({ room: '', count: 4, startLetter: 'A' })
     load()
   }
 
@@ -156,7 +221,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     <div>
       <div className="page-header">
         <h1 className="page-title">Bed map</h1>
-        {(!isStaff || canAddBeds) && !isStaff && (
+        {(!isStaff || canAddBeds) && (
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add bed</button>
         )}
       </div>
@@ -277,7 +342,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
           <Modal title={`Bed ${selected.id}`} onClose={() => setSelected(null)}
             footer={
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {!isStaff && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
+                {(!isStaff || canAddBeds) && selected.status === 'vacant' && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
                 {!isStaff && selected.status !== 'vacant' && <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>}
                 <button className="btn" onClick={() => setSelected(null)}>Close</button>
               </div>
@@ -338,20 +403,126 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
       })()}
 
       {/* Add bed modal */}
-      {showAdd && (
-        <Modal title="Add new bed" onClose={() => setShowAdd(false)}
-          footer={<><button className="btn" onClick={() => setShowAdd(false)}>Cancel</button><button className="btn btn-primary" onClick={handleAddBed}>Add bed</button></>}>
-          <div className="form-grid">
-            <div className="form-group"><label>Bed ID</label><input placeholder="e.g. 101E" value={newBed.id} onChange={e => setNewBed(p => ({ ...p, id: e.target.value }))} /></div>
-            <div className="form-group"><label>Status</label>
-              <select value={newBed.status} onChange={e => setNewBed(p => ({ ...p, status: e.target.value }))}>
-                <option value="vacant">Vacant</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
+      {showAdd && (() => {
+        // Live preview of bed IDs that will be created in bulk mode
+        const previewIds = (() => {
+          if (addMode !== 'bulk') return []
+          const room = bulkBed.room.trim().toUpperCase()
+          const count = parseInt(bulkBed.count)
+          const startLetter = (bulkBed.startLetter || 'A').trim().toUpperCase()
+          if (!room || !count || count < 1 || !/^[A-Z]$/.test(startLetter)) return []
+          const startCode = startLetter.charCodeAt(0)
+          const ids = []
+          for (let i = 0; i < count; i++) {
+            if (startCode + i > 90) break
+            ids.push(`${room}${String.fromCharCode(startCode + i)}`)
+          }
+          return ids
+        })()
+
+        // Which of those already exist (so user sees what'll be skipped)
+        const existingSet = new Set(beds.map(b => b.id))
+        const willSkip = previewIds.filter(id => existingSet.has(id))
+        const willAdd = previewIds.filter(id => !existingSet.has(id))
+
+        return (
+          <Modal title="Add beds" onClose={() => setShowAdd(false)}
+            footer={
+              <>
+                <button className="btn" onClick={() => setShowAdd(false)}>Cancel</button>
+                {addMode === 'single'
+                  ? <button className="btn btn-primary" onClick={handleAddBed}>Add bed</button>
+                  : <button className="btn btn-primary" onClick={handleBulkAdd} disabled={willAdd.length === 0}>
+                      Add {willAdd.length > 0 ? `${willAdd.length} bed${willAdd.length > 1 ? 's' : ''}` : 'beds'}
+                    </button>
+                }
+              </>
+            }>
+
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', gap: 4, background: 'var(--bg)', padding: 3, borderRadius: 'var(--radius-sm)', marginBottom: 16 }}>
+              <button
+                onClick={() => setAddMode('single')}
+                style={{
+                  flex: 1, padding: '6px 10px', fontSize: 12, fontWeight: 600,
+                  background: addMode === 'single' ? 'var(--surface)' : 'transparent',
+                  color: 'var(--text)', border: 'none', borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: addMode === 'single' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}>
+                Single bed
+              </button>
+              <button
+                onClick={() => setAddMode('bulk')}
+                style={{
+                  flex: 1, padding: '6px 10px', fontSize: 12, fontWeight: 600,
+                  background: addMode === 'bulk' ? 'var(--surface)' : 'transparent',
+                  color: 'var(--text)', border: 'none', borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: addMode === 'bulk' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}>
+                Bulk add
+              </button>
             </div>
-          </div>
-        </Modal>
-      )}
+
+            {addMode === 'single' ? (
+              <div className="form-grid">
+                <div className="form-group"><label>Bed ID</label>
+                  <input placeholder="e.g. 101E" value={newBed.id} onChange={e => setNewBed(p => ({ ...p, id: e.target.value }))} />
+                </div>
+              </div>
+            ) : (
+              <div className="form-grid">
+                <div className="form-group"><label>Room number</label>
+                  <input placeholder="e.g. 101" value={bulkBed.room}
+                    onChange={e => setBulkBed(p => ({ ...p, room: e.target.value }))} />
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Number of beds</label>
+                    <input type="number" min="1" max="26" value={bulkBed.count}
+                      onChange={e => setBulkBed(p => ({ ...p, count: e.target.value }))} />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Start from letter</label>
+                    <input maxLength="1" placeholder="A" value={bulkBed.startLetter}
+                      onChange={e => setBulkBed(p => ({ ...p, startLetter: e.target.value.toUpperCase() }))} />
+                  </div>
+                </div>
+
+                {/* Live preview */}
+                {previewIds.length > 0 && (
+                  <div style={{ background: 'var(--bg)', padding: 10, borderRadius: 'var(--radius-sm)', marginTop: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+                      Will create
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {previewIds.map(id => {
+                        const isDup = existingSet.has(id)
+                        return (
+                          <span key={id} style={{
+                            fontSize: 12, padding: '2px 8px', borderRadius: 4, fontWeight: 500,
+                            background: isDup ? 'var(--border)' : 'var(--green-bg, #e6f7ec)',
+                            color: isDup ? 'var(--text-tertiary)' : 'var(--green, #12784f)',
+                            textDecoration: isDup ? 'line-through' : 'none'
+                          }}>
+                            {id}
+                          </span>
+                        )
+                      })}
+                    </div>
+                    {willSkip.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
+                        {willSkip.length} already exist{willSkip.length > 1 ? '' : 's'}, will be skipped
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </Modal>
+        )
+      })()}
 
       {toast && <div className="toast">{toast}</div>}
     </div>

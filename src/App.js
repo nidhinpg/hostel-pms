@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
@@ -11,6 +11,9 @@ import AdminPanel from './pages/AdminPanel'
 import StaffManager from './pages/StaffManager'
 import ResetPassword from './pages/ResetPassword'
 import './App.css'
+import { Capacitor } from '@capacitor/core'
+import Landing from './pages/Landing'
+import Signup from './pages/Signup'
 
 // ─── Razorpay ────────────────────────────────────────────────────────────────
 const RAZORPAY_KEY = 'rzp_live_T7TrGIeNx4lC0M'
@@ -20,6 +23,22 @@ const PLANS = {
   basic_yearly:   { id: 'plan_T8D05XTWtcpnYT', label: '📦 Basic Yearly',   price: '₹3,999/year', desc: 'Manual WhatsApp reminders', save: 'SAVE ₹1,989' },
   pro_monthly:    { id: 'plan_T7U81QEbhRW5zP', label: '⚡ Pro Monthly',    price: '₹999/month',  desc: 'Auto WhatsApp from Pavio number' },
   pro_yearly:     { id: 'plan_T7WMuKFrSxeIcI', label: '🏆 Pro Yearly',     price: '₹7,999/year', desc: 'Auto WhatsApp from Pavio number', save: 'SAVE ₹3,989' },
+}
+
+// Short, plain-language feature lists shown under each tier so the difference is obvious at a glance.
+const TIER_FEATURES = {
+  basic: [
+    '1 property',
+    'Tap a button to open WhatsApp, you hit send',
+    'Finance reports — CSV & PDF export',
+  ],
+  pro: [
+    'Unlimited properties',
+    'Staff logins with permission controls',
+    'WhatsApp reminders sent automatically, every day',
+    'Push notifications for rent due',
+    'Priority WhatsApp support',
+  ],
 }
 
 const loadRazorpay = () => new Promise(resolve => {
@@ -68,6 +87,20 @@ const openRazorpay = async (property, planKey) => {
   }).open()
 }
 
+// ─── Feature list (shared between Upgrade modal and expired screen) ──────────
+function FeatureList({ items }) {
+  return (
+    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', textAlign: 'left' }}>
+      {items.map((item, i) => (
+        <li key={i} style={{ display: 'flex', gap: 6, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.4 }}>
+          <span style={{ flexShrink: 0 }}>✓</span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 function SettingsModal({ onClose, activeProperty, onSaved }) {
   const [gpay, setGpay] = useState(activeProperty?.gpay_number || '')
@@ -106,15 +139,47 @@ function SettingsModal({ onClose, activeProperty, onSaved }) {
 
 // ─── Upgrade Modal ────────────────────────────────────────────────────────────
 function UpgradeModal({ onClose, activeProperty }) {
+  // Calculate trial days remaining (if on trial)
+  const trialEnd = activeProperty?.trial_end_date ? new Date(activeProperty.trial_end_date) : null
+  const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24))) : null
+  const isTrial = activeProperty?.plan_type === 'trial'
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 20 }} onClick={onClose}>
-      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 28, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 28, minWidth: 320, maxWidth: 440, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', position: 'relative' }} onClick={e => e.stopPropagation()}>
+
+        {/* Dismiss X button */}
+        <button onClick={onClose}
+          style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          aria-label="Close">
+          ×
+        </button>
+
+        {/* Trial-days-remaining banner — shown only for trial users */}
+        {isTrial && daysLeft !== null && (
+          <div style={{
+            background: daysLeft <= 5 ? 'var(--red-bg)' : 'var(--amber-bg)',
+            color: daysLeft <= 5 ? 'var(--red)' : 'var(--amber)',
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 13,
+            fontWeight: 600,
+            textAlign: 'center',
+            marginBottom: 18,
+            marginTop: 4
+          }}>
+            {daysLeft === 0 ? '⏰ Your trial ends today' : daysLeft === 1 ? '⏰ 1 day left in your trial' : `⏰ ${daysLeft} days left in your trial`}
+          </div>
+        )}
+
         <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4, textAlign: 'center' }}>Choose a Plan</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20, textAlign: 'center' }}>{activeProperty?.name}</div>
 
         {/* Basic */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Basic — Manual WhatsApp</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {['basic_monthly', 'basic_yearly'].map(key => {
             const p = PLANS[key]
             return (
@@ -127,10 +192,11 @@ function UpgradeModal({ onClose, activeProperty }) {
             )
           })}
         </div>
+        <FeatureList items={TIER_FEATURES.basic} />
 
         {/* Pro */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Pro — Auto WhatsApp Reminders</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {['pro_monthly', 'pro_yearly'].map(key => {
             const p = PLANS[key]
             return (
@@ -143,11 +209,14 @@ function UpgradeModal({ onClose, activeProperty }) {
             )
           })}
         </div>
+        <FeatureList items={TIER_FEATURES.pro} />
 
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginBottom: 16 }}>
           ₹1 authorization today, actual charge from next day. Cancel anytime.
         </div>
-        <button className="btn" style={{ width: '100%' }} onClick={onClose}>Cancel</button>
+        <button className="btn" style={{ width: '100%' }} onClick={onClose}>
+          {isTrial ? 'Continue with trial' : 'Cancel'}
+        </button>
       </div>
     </div>
   )
@@ -162,6 +231,24 @@ function AppContent() {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+
+  // ─── Auto-open Upgrade modal for trial users, once per session ─────────
+  // Shown after login for anyone on a trial plan.
+  // Session-scoped (sessionStorage) so dismissing hides it until next login/tab-close.
+  useEffect(() => {
+    if (!activeProperty || !user || isAdmin || isStaff) return
+    if (activeProperty.plan_type !== 'trial') return
+
+    const shownKey = `upgrade_shown_${activeProperty.id}`
+    if (sessionStorage.getItem(shownKey)) return
+
+    // Small delay so it doesn't feel abrupt right at login
+    const t = setTimeout(() => {
+      setShowUpgradeModal(true)
+      sessionStorage.setItem(shownKey, '1')
+    }, 800)
+    return () => clearTimeout(t)
+  }, [activeProperty, user, isAdmin, isStaff])
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -203,7 +290,7 @@ function AppContent() {
 
             {/* Basic plans */}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Basic — Manual WhatsApp</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button onClick={() => openRazorpay(activeProperty, 'basic_monthly')}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: '2px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
                 ₹499/month
@@ -214,10 +301,11 @@ function AppContent() {
                 ₹3,999/year
               </button>
             </div>
+            <FeatureList items={TIER_FEATURES.basic} />
 
             {/* Pro plans */}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Pro — Auto WhatsApp Reminders</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button onClick={() => openRazorpay(activeProperty, 'pro_monthly')}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: 'none', background: '#D85A30', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
                 ₹999/month
@@ -228,6 +316,7 @@ function AppContent() {
                 ₹7,999/year
               </button>
             </div>
+            <FeatureList items={TIER_FEATURES.pro} />
 
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 16 }}>₹1 authorization today, actual charge from next day. Cancel anytime.</div>
             <a href={`https://wa.me/919778776405?text=Hi%20Nidhin%2C%20I%20want%20to%20upgrade%20my%20Pavio%20plan%20for%20${encodeURIComponent(activeProperty.name)}`}
@@ -249,8 +338,8 @@ function AppContent() {
     { id: 'dashboard', label: 'Dashboard',            roles: ['owner', 'staff', 'admin'], permKey: 'view_dashboard' },
     { id: 'beds',      label: 'Bed map',              roles: ['owner', 'staff', 'admin'], permKey: 'view_bedmap' },
     { id: 'tenants',   label: 'Tenants',              roles: ['owner', 'staff', 'admin'], permKey: null },
-    { id: 'finance',   label: 'Income & expenses',    roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
-    { id: 'reports',   label: 'Reports',              roles: ['owner', 'admin'],          permKey: 'view_reports' },
+    { id: 'finance',   label: 'Receipts & payments',  roles: ['owner', 'staff', 'admin'], permKey: 'add_expenses' },
+    { id: 'reports',   label: 'Reports',              roles: ['owner', 'staff', 'admin'], permKey: 'view_reports' },
   ]
 
   const navPages = ALL_PAGES.filter(p => {
@@ -433,7 +522,7 @@ function AppContent() {
 
       <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }}>
         {page === 'admin' && isAdmin && <AdminPanel />}
-        {page === 'staff' && isOwner && <StaffManager propertyId={activeProperty?.id} />}
+        {page === 'staff' && isOwner && <StaffManager propertyId={activeProperty?.id} onUpgradeClick={() => setShowUpgradeModal(true)} />}
         {!['admin', 'staff'].includes(page) && (
           !activeProperty
             ? <div className="empty" style={{ marginTop: 60 }}>Select a property to continue</div>
@@ -442,7 +531,7 @@ function AppContent() {
                 {page === 'beds' && <BedMap propertyId={activeProperty.id} isStaff={isStaff} canAddBeds={permissions?.add_beds} />}
                 {page === 'tenants' && <Tenants key={tenantFilter} propertyId={activeProperty.id} isStaff={isStaff} initialFilter={tenantFilter} canAddTenants={permissions?.add_tenants} canDeleteEntries={permissions?.delete_entries} canCollectRent={permissions?.collect_rent} />}
                 {page === 'finance' && <Finance propertyId={activeProperty.id} isStaff={isStaff} canDelete={permissions?.delete_entries} />}
-                {page === 'reports' && !isStaff && <Reports propertyId={activeProperty.id} />}
+                {page === 'reports' && (!isStaff || permissions?.view_reports) && <Reports propertyId={activeProperty.id} />}
               </>
         )}
       </main>
@@ -460,7 +549,23 @@ function AppContent() {
 }
 
 export default function App() {
-  if (window.location.pathname === '/reset-password') {
+  const path = window.location.pathname
+  const isNative = Capacitor.isNativePlatform()
+
+  // Marketing landing page — only for web browsers hitting the root URL.
+  // The installed Android app (Capacitor) always skips this and goes
+  // straight into the existing login/dashboard flow, so the current APK
+  // needs no changes at all.
+  if (!isNative && (path === '/' || path === '')) {
+    return <Landing />
+  }
+
+  // Self-signup page for new hostel owners — browsers only.
+  if (!isNative && path === '/signup') {
+    return <Signup />
+  }
+
+  if (path === '/reset-password') {
     return (
       <AuthProvider>
         <AppContent />

@@ -107,7 +107,7 @@ function exportPDF(filtered, month, income, expense) {
 }
 // ───────────────────────────────────────────────────────────────
 
-export default function Finance({ propertyId, isStaff = false }) {
+export default function Finance({ propertyId, isStaff = false, canDelete = false }) {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -334,7 +334,7 @@ export default function Finance({ propertyId, isStaff = false }) {
                       {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
                     </td>
                     <td>
-                      {!isStaff && (
+                      {(!isStaff || canDelete) && (
                         <button onClick={() => handleDelete(t.id)} title="Delete"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '0 4px', lineHeight: 1 }}
                           onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}

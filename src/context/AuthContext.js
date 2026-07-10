@@ -69,6 +69,41 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  // 🔄 Auto-refresh profile & permissions when owner updates them
+  // 1) Realtime — instant update via Supabase WebSocket
+  // 2) Tab focus — fallback in case realtime drops (mobile background, network hiccup)
+  useEffect(() => {
+    if (!user?.id) return
+
+    const channel = supabase
+      .channel(`profile-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+        (payload) => {
+          const updated = payload.new
+          if (!updated) return
+          setProfile(updated)
+          if (updated.role === 'staff') {
+            setPermissions({ ...DEFAULT_PERMISSIONS, ...(updated.permissions || {}) })
+          }
+        }
+      )
+      .subscribe()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadUserData(user)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [user?.id])
+
   const loadUserData = async (user) => {
     const { data: profileRows } = await supabase
       .from('profiles').select('*').eq('id', user.id)
