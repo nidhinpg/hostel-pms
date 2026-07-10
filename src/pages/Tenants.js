@@ -243,6 +243,72 @@ Thank you! — ${hostelName}`
 
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
+  const downloadCSV = () => {
+    const propertyName = activeProperty?.name || 'Property'
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+    // Active tenants sheet
+    const activeHeaders = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Monthly Rent', 'Advance', 'Payment Status', 'Amount Paid']
+    const activeRows = tenants.map(t => {
+      const payment = rentPayments.find(p => p.tenant_id === t.id)
+      const status = getRentStatus(t)
+      return [
+        t.name,
+        t.phone || '',
+        t.aadhar || '',
+        t.bed_id || '',
+        t.movein_date || '',
+        t.rent || '',
+        t.advance || '',
+        status === 'paid' ? 'Paid' : status === 'due' ? 'Due' : 'Upcoming',
+        payment ? payment.amount : ''
+      ]
+    })
+
+    // Vacated tenants sheet
+    const vacatedHeaders = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Vacate Date', 'Monthly Rent', 'Advance']
+    const vacatedRows = vacatedTenants.map(t => [
+      t.name,
+      t.phone || '',
+      t.aadhar || '',
+      t.bed_id || '',
+      t.movein_date || '',
+      t.vacate_date || '',
+      t.rent || '',
+      t.advance || ''
+    ])
+
+    // Build CSV content
+    const escape = val => `"${String(val).replace(/"/g, '""')}"`
+    const toCSV = (headers, rows) => [
+      headers.map(escape).join(','),
+      ...rows.map(r => r.map(escape).join(','))
+    ].join('\n')
+
+    const content = [
+      `Pavio — ${propertyName}`,
+      `Downloaded: ${dateStr}`,
+      `Month: ${month}`,
+      '',
+      '=== ACTIVE TENANTS ===',
+      toCSV(activeHeaders, activeRows),
+      '',
+      '=== VACATED HISTORY ===',
+      toCSV(vacatedHeaders, vacatedRows)
+    ].join('\n')
+
+    // Trigger download
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${propertyName}-tenants-${dateStr}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('Downloaded!')
+  }
+
   if (loading) return <div className="loading">Loading tenants...</div>
 
   const paidThisMonth = tenants.filter(t => isPaid(t.id)).length
@@ -269,9 +335,14 @@ Thank you! — ${hostelName}`
     <div>
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
-        {(!isStaff || canAddTenants) && tab === 'active' && (
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={downloadCSV} title="Download tenant list">
+            ⬇ Download
+          </button>
+          {(!isStaff || canAddTenants) && tab === 'active' && (
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
+          )}
+        </div>
       </div>
 
       {/* Main tabs */}
