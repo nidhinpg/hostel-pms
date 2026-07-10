@@ -243,70 +243,117 @@ Thank you! — ${hostelName}`
 
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
+  const escape = val => `"${String(val ?? '').replace(/"/g, '""')}"`
+  const toCSV = (headers, rows) => [
+    headers.map(escape).join(','),
+    ...rows.map(r => r.map(escape).join(','))
+  ].join('\n')
+
+  const getActiveRows = () => {
+    const headers = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Monthly Rent', 'Advance', 'Payment Status', 'Amount Paid']
+    const rows = tenants.map(t => {
+      const payment = rentPayments.find(p => p.tenant_id === t.id)
+      const status = getRentStatus(t)
+      return [
+        t.name, t.phone || '', t.aadhar || '', t.bed_id || '',
+        t.movein_date || '', t.rent || '', t.advance || '',
+        status === 'paid' ? 'Paid' : status === 'due' ? 'Due' : 'Upcoming',
+        payment ? payment.amount : ''
+      ]
+    })
+    return { headers, rows }
+  }
+
+  const getVacatedRows = () => {
+    const headers = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Vacate Date', 'Monthly Rent', 'Advance']
+    const rows = vacatedTenants.map(t => [
+      t.name, t.phone || '', t.aadhar || '', t.bed_id || '',
+      t.movein_date || '', t.vacate_date || '', t.rent || '', t.advance || ''
+    ])
+    return { headers, rows }
+  }
+
   const downloadCSV = () => {
     const propertyName = activeProperty?.name || 'Property'
     const now = new Date()
     const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
 
-    // Active tenants sheet
-    const activeHeaders = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Monthly Rent', 'Advance', 'Payment Status', 'Amount Paid']
-    const activeRows = tenants.map(t => {
-      const payment = rentPayments.find(p => p.tenant_id === t.id)
-      const status = getRentStatus(t)
-      return [
-        t.name,
-        t.phone || '',
-        t.aadhar || '',
-        t.bed_id || '',
-        t.movein_date || '',
-        t.rent || '',
-        t.advance || '',
-        status === 'paid' ? 'Paid' : status === 'due' ? 'Due' : 'Upcoming',
-        payment ? payment.amount : ''
-      ]
-    })
+    let content, filename
+    if (tab === 'active') {
+      const { headers, rows } = getActiveRows()
+      content = [`Pavio — ${propertyName}`, `Downloaded: ${dateStr}`, `Month: ${month}`, '', toCSV(headers, rows)].join('\n')
+      filename = `${propertyName}-active-tenants-${dateStr}.csv`
+    } else {
+      const { headers, rows } = getVacatedRows()
+      content = [`Pavio — ${propertyName}`, `Downloaded: ${dateStr}`, '', toCSV(headers, rows)].join('\n')
+      filename = `${propertyName}-vacated-tenants-${dateStr}.csv`
+    }
 
-    // Vacated tenants sheet
-    const vacatedHeaders = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Vacate Date', 'Monthly Rent', 'Advance']
-    const vacatedRows = vacatedTenants.map(t => [
-      t.name,
-      t.phone || '',
-      t.aadhar || '',
-      t.bed_id || '',
-      t.movein_date || '',
-      t.vacate_date || '',
-      t.rent || '',
-      t.advance || ''
-    ])
-
-    // Build CSV content
-    const escape = val => `"${String(val).replace(/"/g, '""')}"`
-    const toCSV = (headers, rows) => [
-      headers.map(escape).join(','),
-      ...rows.map(r => r.map(escape).join(','))
-    ].join('\n')
-
-    const content = [
-      `Pavio — ${propertyName}`,
-      `Downloaded: ${dateStr}`,
-      `Month: ${month}`,
-      '',
-      '=== ACTIVE TENANTS ===',
-      toCSV(activeHeaders, activeRows),
-      '',
-      '=== VACATED HISTORY ===',
-      toCSV(vacatedHeaders, vacatedRows)
-    ].join('\n')
-
-    // Trigger download
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
-    a.download = `${propertyName}-tenants-${dateStr}.csv`
-    a.click()
+    a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
-    showToast('Downloaded!')
+    showToast('CSV downloaded!')
+  }
+
+  const downloadExcel = () => {
+    const propertyName = activeProperty?.name || 'Property'
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+    let headers, rows, sheetName, filename
+    if (tab === 'active') {
+      const d = getActiveRows()
+      headers = d.headers; rows = d.rows
+      sheetName = 'Active Tenants'
+      filename = `${propertyName}-active-tenants-${dateStr}.xlsx`
+    } else {
+      const d = getVacatedRows()
+      headers = d.headers; rows = d.rows
+      sheetName = 'Vacated History'
+      filename = `${propertyName}-vacated-tenants-${dateStr}.xlsx`
+    }
+
+    // Build a simple Excel XML (SpreadsheetML) — no library needed
+    const cell = (val, type = 'String') => {
+      const v = String(val ?? '')
+      if (type === 'Number' && !isNaN(v) && v !== '') {
+        return `<Cell><Data ss:Type="Number">${v}</Data></Cell>`
+      }
+      return `<Cell><Data ss:Type="String">${v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</Data></Cell>`
+    }
+    const headerRow = `<Row>${headers.map(h => cell(h)).join('')}</Row>`
+    const dataRows = rows.map(r => `<Row>${r.map((v, i) => {
+      const numCols = headers[i] === 'Monthly Rent' || headers[i] === 'Advance' || headers[i] === 'Amount Paid'
+      return cell(v, numCols ? 'Number' : 'String')
+    }).join('')}</Row>`).join('')
+
+    const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="header">
+      <Font ss:Bold="1"/>
+      <Interior ss:Color="#D85A30" ss:Pattern="Solid"/>
+      <Font ss:Color="#FFFFFF" ss:Bold="1"/>
+    </Style>
+  </Styles>
+  <Worksheet ss:Name="${sheetName}">
+    <Table>
+      <Row>${headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
+      ${dataRows}
+    </Table>
+  </Worksheet>
+</Workbook>`
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+    showToast('Excel downloaded!')
   }
 
   if (loading) return <div className="loading">Loading tenants...</div>
@@ -336,8 +383,11 @@ Thank you! — ${hostelName}`
       <div className="page-header">
         <h1 className="page-title">Tenants</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={downloadCSV} title="Download tenant list">
-            ⬇ Download
+          <button className="btn" onClick={downloadCSV} title="Download as CSV">
+            ⬇ CSV
+          </button>
+          <button className="btn" onClick={downloadExcel} title="Download as Excel">
+            ⬇ Excel
           </button>
           {(!isStaff || canAddTenants) && tab === 'active' && (
             <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add tenant</button>
