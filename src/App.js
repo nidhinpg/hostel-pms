@@ -69,19 +69,36 @@ const openRazorpay = async (property, planKey) => {
     name: 'Pavio PMS',
     description: plan.label + ' - ' + property.name,
     handler: async (response) => {
-      await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/activate-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          property_id: property.id,
-          plan_type: planKey.startsWith('pro') ? 'pro' : 'basic',
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_subscription_id: response.razorpay_subscription_id,
-          razorpay_signature: response.razorpay_signature
+      try {
+        const res = await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/activate-subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            property_id: property.id,
+            plan_type: planKey.startsWith('pro') ? 'pro' : 'basic',
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_subscription_id: response.razorpay_subscription_id,
+            razorpay_signature: response.razorpay_signature
+          })
         })
-      })
-      alert('Payment successful! Your plan is now active.')
-      window.location.reload()
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || data.error) {
+          alert(
+            'Payment was received, but activating your plan failed (' + (data.error || res.status) + ').\n\n' +
+            'Please contact support@pavio.tech with this payment ID so we can fix it manually:\n' +
+            response.razorpay_payment_id
+          )
+          return
+        }
+        alert('Payment successful! Your plan is now active.')
+        window.location.reload()
+      } catch (err) {
+        alert(
+          'Payment was received, but we could not confirm activation.\n\n' +
+          'Please contact support@pavio.tech with this payment ID:\n' +
+          response.razorpay_payment_id
+        )
+      }
     },
     theme: { color: '#D85A30' }
   }).open()
