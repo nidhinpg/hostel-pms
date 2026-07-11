@@ -72,7 +72,10 @@ const openRazorpay = async (property, planKey) => {
       try {
         const res = await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/activate-subscription', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsbXFqa3l5anh0Ym5uZmJwbmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNDI0MDQsImV4cCI6MjA2MDgxODQwNH0.eVSHJCGCOi5j1zT40KGqHsRXbXDCwx8NJNC09zkahQE'
+          },
           body: JSON.stringify({
             property_id: property.id,
             plan_type: planKey.startsWith('pro') ? 'pro' : 'basic',
