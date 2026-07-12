@@ -166,6 +166,86 @@ function SettingsModal({ onClose, activeProperty, onSaved }) {
   )
 }
 
+// ─── Add Property Modal (Pro only) ────────────────────────────────────────────
+function AddPropertyModal({ onClose, userId, onCreated }) {
+  const [form, setForm] = useState({ property_name: '', city: '', gpay_number: '', address: '' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const submit = async () => {
+    setError('')
+    if (!form.property_name.trim()) { setError('Property name is required'); return }
+
+    setSaving(true)
+    try {
+      const res = await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/add-property', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsbXFqa3l5anh0Ym5uZmJwbmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNDI0MDQsImV4cCI6MjA2MDgxODQwNH0.eVSHJCGCOi5j1zT40KGqHsRXbXDCwx8NJNC09zkahQE'
+        },
+        body: JSON.stringify({
+          requester_id: userId,
+          property_name: form.property_name.trim(),
+          city: form.city.trim(),
+          gpay_number: form.gpay_number.trim(),
+          address: form.address.trim(),
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setError(data.error || 'Could not create property. Please try again.')
+        setSaving(false)
+        return
+      }
+      onCreated(data.property)
+      onClose()
+    } catch (err) {
+      setError(err?.message || 'Unexpected error. Please try again.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 20 }} onClick={onClose}>
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 24, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Add another property</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>Included with your Pro plan — no separate payment.</div>
+
+        {error && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12, padding: '8px 10px', background: 'var(--red-bg)', borderRadius: 'var(--radius-sm)' }}>{error}</div>}
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Property name *</label>
+          <input value={form.property_name} onChange={f('property_name')} placeholder="e.g. Blue Nest Stays"
+            style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>City</label>
+          <input value={form.city} onChange={f('city')} placeholder="e.g. Kochi"
+            style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>GPay number</label>
+          <input value={form.gpay_number} onChange={f('gpay_number')} placeholder="10 digits"
+            style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Address</label>
+          <textarea value={form.address} onChange={f('address')} rows={2} placeholder="Property address (optional)"
+            style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? 'Creating...' : 'Create property'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Upgrade Modal ────────────────────────────────────────────────────────────
 function UpgradeModal({ onClose, activeProperty }) {
   // Calculate trial days remaining (if on trial)
@@ -253,13 +333,14 @@ function UpgradeModal({ onClose, activeProperty }) {
 
 // ─── App Content ──────────────────────────────────────────────────────────────
 function AppContent() {
-  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner, permissions } = useAuth()
+  const { user, profile, properties, activeProperty, selectProperty, signOut, loading, isAdmin, isStaff, isOwner, permissions, refreshProperties } = useAuth()
   const [page, setPage] = useState('dashboard')
   const [tenantFilter, setTenantFilter] = useState('all')
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [showAddProperty, setShowAddProperty] = useState(false)
 
   // ─── Auto-open Upgrade modal for trial users, once per session ─────────
   // Shown after login for anyone on a trial plan.
@@ -559,6 +640,16 @@ function AppContent() {
                   </div>
                 )}
 
+                {/* Add property — Pro only */}
+                {isOwner && !isAdmin && properties.some(p => p.plan_type === 'pro' || p.plan_type === 'owned') && (
+                  <div onClick={() => { setShowAddProperty(true); setShowUserMenu(false) }}
+                    style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    ➕ Add property
+                  </div>
+                )}
+
                 {/* Support */}
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 <a href="mailto:support@pavio.tech"
@@ -610,6 +701,17 @@ function AppContent() {
 
       {showUpgradeModal && activeProperty && (
         <UpgradeModal activeProperty={activeProperty} onClose={() => setShowUpgradeModal(false)} />
+      )}
+
+      {showAddProperty && (
+        <AddPropertyModal
+          userId={user?.id}
+          onClose={() => setShowAddProperty(false)}
+          onCreated={(newProperty) => {
+            refreshProperties()
+            if (newProperty) selectProperty(newProperty)
+          }}
+        />
       )}
     </div>
   )
