@@ -93,6 +93,15 @@ Deno.serve(async (req) => {
       year: 'numeric'
     })
 
+    // TEMP DEBUG — remove once the date math is confirmed correct in production.
+    console.log('[receipt] DEBUG tenant_id:', tenant_id)
+    console.log('[receipt] DEBUG raw tenant.movein_date from DB:', tenant.movein_date)
+    console.log('[receipt] DEBUG raw month input:', month)
+    console.log('[receipt] DEBUG raw paid_date input:', paid_date)
+    console.log('[receipt] DEBUG computed joinDay:', joinDay)
+    console.log('[receipt] DEBUG computed validTill (ISO):', validTill.toISOString())
+    console.log('[receipt] DEBUG computed validTillStr:', validTillStr)
+
     // Format month label e.g. "2026-07" → "July 2026"
     const [yr, mo] = (month || '').split('-')
     const monthLabel = month
