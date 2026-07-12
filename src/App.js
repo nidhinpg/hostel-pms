@@ -131,7 +131,7 @@ function FeatureList({ items }) {
 }
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
-function SettingsModal({ onClose, activeProperty, onSaved }) {
+function SettingsModal({ onClose, activeProperty, onSaved, onOpenStaffManagement, onOpenAddProperty, showAddProperty }) {
   const [gpay, setGpay] = useState(activeProperty?.gpay_number || '')
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
@@ -157,10 +157,23 @@ function SettingsModal({ onClose, activeProperty, onSaved }) {
             style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
         </div>
         {toast && <div style={{ fontSize: 12, color: 'var(--green)', marginBottom: 12 }}>{toast}</div>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: onOpenStaffManagement ? 16 : 0 }}>
           <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
         </div>
+
+        {onOpenStaffManagement && (
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button className="btn" style={{ textAlign: 'left' }} onClick={onOpenStaffManagement}>
+              👥 Staff management
+            </button>
+            {showAddProperty && (
+              <button className="btn" style={{ textAlign: 'left' }} onClick={onOpenAddProperty}>
+                ➕ Add property
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -620,33 +633,13 @@ function AppContent() {
                   </div>
                 )}
 
-                {/* Staff management */}
-                {isOwner && (
-                  <div onClick={() => { setPage('staff'); setShowUserMenu(false) }}
-                    style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    👥 Staff management
-                  </div>
-                )}
-
-                {/* Settings */}
+                {/* Settings — now also houses Staff management and Add property */}
                 {isOwner && activeProperty && (
                   <div onClick={() => { setShowSettings(true); setShowUserMenu(false) }}
                     style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     ⚙️ Settings
-                  </div>
-                )}
-
-                {/* Add property — Pro only */}
-                {isOwner && !isAdmin && properties.some(p => p.plan_type === 'pro' || p.plan_type === 'owned') && (
-                  <div onClick={() => { setShowAddProperty(true); setShowUserMenu(false) }}
-                    style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    ➕ Add property
                   </div>
                 )}
 
@@ -696,7 +689,10 @@ function AppContent() {
 
       {showSettings && activeProperty && (
         <SettingsModal activeProperty={activeProperty} onClose={() => setShowSettings(false)}
-          onSaved={(newGpay) => { activeProperty.gpay_number = newGpay }} />
+          onSaved={(newGpay) => { activeProperty.gpay_number = newGpay }}
+          onOpenStaffManagement={() => { setShowSettings(false); setPage('staff') }}
+          onOpenAddProperty={() => { setShowSettings(false); setShowAddProperty(true) }}
+          showAddProperty={!isAdmin && properties.some(p => p.plan_type === 'pro' || p.plan_type === 'owned')} />
       )}
 
       {showUpgradeModal && activeProperty && (
