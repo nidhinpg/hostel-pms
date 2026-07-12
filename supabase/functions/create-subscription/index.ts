@@ -14,6 +14,14 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 }
 
+// Razorpay caps total_count at 100 for yearly/interval=1 plans (100 years),
+// but allows much more for monthly plans. 120 months = 10 years is fine for
+// monthly; yearly plans need to stay at or under 100.
+const YEARLY_PLAN_IDS = new Set([
+  'plan_T8D05XTWtcpnYT', // Pavio Basic Yearly
+  'plan_T7WMuKFrSxeIcI', // Pavio Pro Yearly
+])
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -25,13 +33,15 @@ Deno.serve(async (req) => {
     })
   }
 
+  const totalCount = YEARLY_PLAN_IDS.has(plan_id) ? 100 : 120
+
   const auth = btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)
   const res = await fetch('https://api.razorpay.com/v1/subscriptions', {
     method: 'POST',
     headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       plan_id,
-      total_count: 120,
+      total_count: totalCount,
       quantity: 1,
       notes: { property_id, property_name }
     })
