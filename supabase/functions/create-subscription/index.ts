@@ -14,6 +14,16 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 }
 
+// Plan amount in paise, matching the price of each plan in Razorpay Dashboard.
+// This gets charged upfront as part of the authorization transaction,
+// instead of the default ₹1 token charge.
+const PLAN_AMOUNTS: Record<string, number> = {
+  'plan_T8CxyqT1NVMQOl': 49900,   // Pavio Basic — ₹499/month
+  'plan_T8D05XTWtcpnYT': 399900,  // Pavio Basic Yearly — ₹3,999/year
+  'plan_T7U81QEbhRW5zP': 99900,   // Pavio Pro — ₹999/month
+  'plan_T7WMuKFrSxeIcI': 799900,  // Pavio Pro Yearly — ₹7,999/year
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -21,6 +31,13 @@ Deno.serve(async (req) => {
 
   if (!property_id || !plan_id) {
     return new Response(JSON.stringify({ error: 'property_id and plan_id required' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+
+  const upfrontAmount = PLAN_AMOUNTS[plan_id]
+  if (!upfrontAmount) {
+    return new Response(JSON.stringify({ error: `Unknown plan_id: ${plan_id}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
@@ -33,6 +50,15 @@ Deno.serve(async (req) => {
       plan_id,
       total_count: 120,
       quantity: 1,
+      addons: [
+        {
+          item: {
+            name: 'Subscription charge',
+            amount: upfrontAmount,
+            currency: 'INR'
+          }
+        }
+      ],
       notes: { property_id, property_name }
     })
   })
