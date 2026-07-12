@@ -57,11 +57,14 @@ const openRazorpay = async (property, planKey) => {
   const plan = PLANS[planKey]
   const res = await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/create-subscription', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsbXFqa3l5anh0Ym5uZmJwbmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNDI0MDQsImV4cCI6MjA2MDgxODQwNH0.eVSHJCGCOi5j1zT40KGqHsRXbXDCwx8NJNC09zkahQE'
+    },
     body: JSON.stringify({ property_id: property.id, property_name: property.name, plan_id: plan.id })
   })
   const { subscription_id, error } = await res.json()
-  if (error) { alert('Error: ' + error); return }
+  if (error || !subscription_id) { alert('Error: ' + (error || 'No subscription created — please try again or contact support@pavio.tech')); return }
 
   new window.Razorpay({
     key: RAZORPAY_KEY,
@@ -294,6 +297,28 @@ function AppContent() {
     const trialEnd = activeProperty.trial_end_date ? new Date(activeProperty.trial_end_date) : null
     const isTrialExpired = activeProperty.plan_type === 'trial' && trialEnd && trialEnd < new Date()
     const isSuspended = activeProperty.subscription_status === 'suspended' || activeProperty.subscription_status === 'expired'
+
+    if ((isTrialExpired || isSuspended) && isStaff) {
+      // Staff work under the owner's account/billing — they should never see
+      // payment buttons or be able to trigger a charge. Just point them to the owner.
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 20 }}>
+          <div className="card" style={{ maxWidth: 400, textAlign: 'center', padding: 32 }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>⏰</div>
+            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
+              {isTrialExpired ? 'Free trial has ended' : 'Subscription paused'}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>{activeProperty.name}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
+              {isTrialExpired
+                ? "This property's free trial has expired. Please contact the property owner to choose a plan and continue using Pavio."
+                : "This property's subscription is no longer active. Please contact the property owner to renew it."}
+            </div>
+            <button className="btn" onClick={signOut}>Sign out</button>
+          </div>
+        </div>
+      )
+    }
 
     if (isTrialExpired || isSuspended) {
       return (
