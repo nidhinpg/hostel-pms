@@ -18,6 +18,12 @@ import Signup from './pages/Signup'
 // ─── Razorpay ────────────────────────────────────────────────────────────────
 const RAZORPAY_KEY = 'rzp_live_T7TrGIeNx4lC0M'
 
+// Properties permanently exempt from the trial/subscription paywall — no billing ever,
+// for owner or staff. Currently just Hosteloops (internal/testing account).
+const BILLING_EXEMPT_PROPERTY_IDS = new Set([
+  'a1b2c3d4-e5f6-7890-abcd-ef1234567890', // Hosteloops
+])
+
 const PLANS = {
   basic_monthly:  { id: 'plan_T8CxyqT1NVMQOl', label: '📦 Basic Monthly',  price: '₹499/month',  desc: 'Manual WhatsApp reminders' },
   basic_yearly:   { id: 'plan_T8D05XTWtcpnYT', label: '📦 Basic Yearly',   price: '₹3,999/year', desc: 'Manual WhatsApp reminders', save: 'SAVE ₹1,989' },
@@ -260,6 +266,7 @@ function AppContent() {
   // Session-scoped (sessionStorage) so dismissing hides it until next login/tab-close.
   useEffect(() => {
     if (!activeProperty || !user || isAdmin || isStaff) return
+    if (BILLING_EXEMPT_PROPERTY_IDS.has(activeProperty.id)) return
     if (activeProperty.plan_type !== 'trial') return
 
     const shownKey = `upgrade_shown_${activeProperty.id}`
@@ -293,7 +300,7 @@ function AppContent() {
   )
 
   // Trial/subscription check
-  if (!isAdmin && activeProperty) {
+  if (!isAdmin && activeProperty && !BILLING_EXEMPT_PROPERTY_IDS.has(activeProperty.id)) {
     const trialEnd = activeProperty.trial_end_date ? new Date(activeProperty.trial_end_date) : null
     const isTrialExpired = activeProperty.plan_type === 'trial' && trialEnd && trialEnd < new Date()
     const isSuspended = activeProperty.subscription_status === 'suspended' || activeProperty.subscription_status === 'expired'
