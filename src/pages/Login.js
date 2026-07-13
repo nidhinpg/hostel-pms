@@ -3,19 +3,28 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Capacitor } from '@capacitor/core'
 
+const SIGNUP_FN_URL = 'https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/signup-owner'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsbXFqa3l5anh0Ym5uZmJwbmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNDI0MDQsImV4cCI6MjA2MDgxODQwNH0.eVSHJCGCOi5j1zT40KGqHsRXbXDCwx8NJNC09zkahQE'
+
 export default function Login() {
   const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [mode, setMode] = useState('login') // 'login' | 'forgot'
+  const [mode, setMode] = useState('login') // 'login' | 'forgot' | 'signup'
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Only show the "Sign up" link in web browsers, not inside the Android app.
-  // (Inside the app, /signup is not a route — new-owner self-signup happens on pavio.tech.)
+  // Signup-only fields (email/password above are shared with the login form)
+  const [signupForm, setSignupForm] = useState({ full_name: '', property_name: '', city: '', gpay_number: '', address: '' })
+  const [signupLoading, setSignupLoading] = useState(false)
+  const setSignupField = (k) => (e) => setSignupForm(p => ({ ...p, [k]: e.target.value }))
+
+  // Web (pavio.tech) sends new owners to the standalone /signup marketing page.
+  // Inside the Android app there's no server-side routing, so signup is an
+  // embedded step of this same screen instead (mode === 'signup').
   const isNative = Capacitor.isNativePlatform()
 
   const handleLogin = async (e) => {
@@ -33,7 +42,7 @@ export default function Login() {
     setError('')
     setResetLoading(true)
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: \`\${window.location.origin}/reset-password\`
     })
     if (error) {
       setError(error.message)
@@ -41,6 +50,60 @@ export default function Login() {
       setResetSent(true)
     }
     setResetLoading(false)
+  }
+
+  const handleSignup = async (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (!signupForm.full_name.trim()) { setError('Please enter your full name.'); return }
+    if (!email.trim()) { setError('Please enter your email.'); return }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (!signupForm.property_name.trim()) { setError('Please enter your property name.'); return }
+
+    setSignupLoading(true)
+    try {
+      const res = await fetch(SIGNUP_FN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+          full_name: signupForm.full_name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          property_name: signupForm.property_name.trim(),
+          city: signupForm.city.trim(),
+          gpay_number: signupForm.gpay_number.trim(),
+          address: signupForm.address.trim(),
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok || data.error) {
+        setError(data.error || 'Signup failed. Please try again.')
+        setSignupLoading(false)
+        return
+      }
+
+      // Auto sign in. Once the session is set, AuthProvider picks it up and this
+      // Login screen unmounts on its own — no manual redirect needed here.
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      })
+
+      if (signInErr) {
+        setError('Account created! Please sign in below.')
+        setMode('login')
+        setSignupLoading(false)
+        return
+      }
+    } catch (err) {
+      setError(err?.message || 'Unexpected error. Please try again.')
+      setSignupLoading(false)
+    }
   }
 
   return (
@@ -68,12 +131,12 @@ export default function Login() {
             Pavio
           </h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            {mode === 'login' ? 'Sign in to manage your property' : 'Reset your password'}
+            {mode === 'login' ? 'Sign in to manage your property' : mode === 'forgot' ? 'Reset your password' : 'Create your account — 15-day free trial'}
           </p>
         </div>
 
         <div className="card">
-          {mode === 'login' ? (
+          {mode === 'login' && (
             <form onSubmit={handleLogin}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div className="form-group">
@@ -135,7 +198,9 @@ export default function Login() {
                 </button>
               </div>
             </form>
-          ) : (
+          )}
+
+          {mode === 'forgot' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {resetSent ? (
                 <div style={{ textAlign: 'center', padding: '10px 0' }}>
@@ -191,20 +256,156 @@ export default function Login() {
               )}
             </div>
           )}
+
+          {mode === 'signup' && (
+            <form onSubmit={handleSignup}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="form-group">
+                  <label>Full name</label>
+                  <input
+                    type="text"
+                    placeholder="Your name"
+                    value={signupForm.full_name}
+                    onChange={setSignupField('full_name')}
+                    autoComplete="name"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email address</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="At least 6 characters"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      autoComplete="new-password"
+                      minLength={6}
+                      required
+                      style={{ width: '100%', paddingRight: 40, boxSizing: 'border-box' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute', right: 10, top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: 0, color: 'var(--text-secondary)', fontSize: 16
+                      }}>
+                      {showPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.5px' }}>
+                  Property details
+                </div>
+
+                <div className="form-group">
+                  <label>Property name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Blue Nest Stays"
+                    value={signupForm.property_name}
+                    onChange={setSignupField('property_name')}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>City</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Kochi"
+                      value={signupForm.city}
+                      onChange={setSignupField('city')}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>GPay number</label>
+                    <input
+                      type="tel"
+                      placeholder="10 digits"
+                      value={signupForm.gpay_number}
+                      onChange={setSignupField('gpay_number')}
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Address</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Property address (optional)"
+                    value={signupForm.address}
+                    onChange={setSignupField('address')}
+                    style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg)', padding: '10px 12px', borderRadius: 6 }}>
+                  Your account starts with a <strong style={{ color: 'var(--text)' }}>15-day free trial</strong> — full access, no card needed.
+                </div>
+
+                {error && (
+                  <div style={{ background: 'var(--red-bg)', color: 'var(--red)', padding: '10px 14px', borderRadius: 8, fontSize: 13 }}>
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '10px', fontSize: 14, justifyContent: 'center', background: '#D85A30', borderColor: '#D85A30' }}
+                  disabled={signupLoading}>
+                  {signupLoading ? 'Creating account...' : 'Create account'}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ width: '100%', padding: '10px', fontSize: 14, justifyContent: 'center' }}
+                  onClick={() => { setMode('login'); setError('') }}>
+                  Back to sign in
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
-        {/* Sign up link — only shown on the web (pavio.tech). Hidden inside the mobile app. */}
-        {!isNative && mode === 'login' && (
+        {/* Sign up link/button — web (pavio.tech) sends users to the standalone
+            /signup page; the app switches this same screen into signup mode. */}
+        {mode === 'login' && (
           <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginTop: 20 }}>
             New to Pavio?{' '}
-            <a href="/signup" style={{ color: '#D85A30', fontWeight: 600, textDecoration: 'none' }}>
-              Create an account
-            </a>
+            {isNative ? (
+              <button
+                type="button"
+                onClick={() => { setMode('signup'); setError('') }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#D85A30', fontWeight: 600, fontSize: 13, textDecoration: 'none', fontFamily: 'inherit' }}>
+                Create an account
+              </button>
+            ) : (
+              <a href="/signup" style={{ color: '#D85A30', fontWeight: 600, textDecoration: 'none' }}>
+                Create an account
+              </a>
+            )}
           </p>
         )}
 
-        {/* Support contact — shown on both web and app */}
-        {mode === 'login' && (
+        {/* Support contact — shown on login and signup, both web and app */}
+        {(mode === 'login' || mode === 'signup') && (
           <div style={{ textAlign: 'center', marginTop: 16, display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
             <a href="mailto:support@pavio.tech" style={{ fontSize: 12, color: 'var(--text-tertiary)', textDecoration: 'none' }}>
               ✉ support@pavio.tech
@@ -213,13 +414,6 @@ export default function Login() {
               💬 WhatsApp support
             </a>
           </div>
-        )}
-
-        {/* App-only footer message */}
-        {isNative && (
-          <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>
-            Don't have an account? Visit pavio.tech to sign up.
-          </p>
         )}
       </div>
     </div>
