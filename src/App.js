@@ -358,9 +358,14 @@ function AppContent() {
   // ─── Auto-open Upgrade modal for trial users, once per session ─────────
   // Shown after login for anyone on a trial plan.
   // Session-scoped (sessionStorage) so dismissing hides it until next login/tab-close.
+  // Pro is an owner-wide plan, not per-property — one Pro property covers every
+  // property this owner has. Only Basic (1 property) and Trial are property-scoped.
+  const ownerIsProElsewhere = properties.some(p => p.plan_type === 'pro' || p.plan_type === 'owned')
+
   useEffect(() => {
     if (!activeProperty || !user || isAdmin || isStaff) return
     if (BILLING_EXEMPT_PROPERTY_IDS.has(activeProperty.id)) return
+    if (ownerIsProElsewhere) return
     if (activeProperty.plan_type !== 'trial') return
 
     const shownKey = `upgrade_shown_${activeProperty.id}`
@@ -372,7 +377,7 @@ function AppContent() {
       sessionStorage.setItem(shownKey, '1')
     }, 800)
     return () => clearTimeout(t)
-  }, [activeProperty, user, isAdmin, isStaff])
+  }, [activeProperty, user, isAdmin, isStaff, ownerIsProElsewhere])
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -393,8 +398,9 @@ function AppContent() {
     </div>
   )
 
-  // Trial/subscription check
-  if (!isAdmin && activeProperty && !BILLING_EXEMPT_PROPERTY_IDS.has(activeProperty.id)) {
+  // Trial/subscription check — skipped entirely if the owner is already Pro on
+  // any of their other properties, since Pro is owner-wide, not per-property.
+  if (!isAdmin && activeProperty && !BILLING_EXEMPT_PROPERTY_IDS.has(activeProperty.id) && !ownerIsProElsewhere) {
     const trialEnd = activeProperty.trial_end_date ? new Date(activeProperty.trial_end_date) : null
     const isTrialExpired = activeProperty.plan_type === 'trial' && trialEnd && trialEnd < new Date()
     const isSuspended = activeProperty.subscription_status === 'suspended' || activeProperty.subscription_status === 'expired'
@@ -497,7 +503,7 @@ function AppContent() {
   const planBadge = () => {
     if (!activeProperty || isAdmin) return null
     const pt = activeProperty.plan_type
-    if (pt === 'pro') return { label: '⚡ Pro', color: 'var(--green)' }
+    if (pt === 'pro' || ownerIsProElsewhere) return { label: '⚡ Pro', color: 'var(--green)' }
     if (pt === 'basic') return { label: '📦 Basic', color: 'var(--blue)' }
     return { label: '🕐 Trial', color: 'var(--amber)' }
   }
