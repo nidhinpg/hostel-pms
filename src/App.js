@@ -56,7 +56,7 @@ const loadRazorpay = () => new Promise(resolve => {
   document.body.appendChild(script)
 })
 
-const openRazorpay = async (property, planKey) => {
+const openRazorpay = async (property, planKey, profile) => {
   const loaded = await loadRazorpay()
   if (!loaded) { alert('Failed to load payment. Please try again.'); return }
 
@@ -77,6 +77,7 @@ const openRazorpay = async (property, planKey) => {
     subscription_id,
     name: 'Pavio PMS',
     description: plan.label + ' - ' + property.name,
+    prefill: { name: profile?.full_name || '', contact: profile?.phone || '' },
     handler: async (response) => {
       try {
         const res = await fetch('https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/activate-subscription', {
@@ -373,7 +374,7 @@ function ManagePropertiesModal({ onClose, userId, properties, activeProperty, on
 }
 
 // ─── Upgrade Modal ────────────────────────────────────────────────────────────
-function UpgradeModal({ onClose, activeProperty }) {
+function UpgradeModal({ onClose, activeProperty, profile }) {
   // Calculate trial days remaining (if on trial)
   const trialEnd = activeProperty?.trial_end_date ? new Date(activeProperty.trial_end_date) : null
   const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24))) : null
@@ -418,7 +419,7 @@ function UpgradeModal({ onClose, activeProperty }) {
           {['basic_monthly', 'basic_yearly'].map(key => {
             const p = PLANS[key]
             return (
-              <button key={key} onClick={() => { openRazorpay(activeProperty, key); onClose() }}
+              <button key={key} onClick={() => { openRazorpay(activeProperty, key, profile); onClose() }}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: '2px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', position: 'relative', textAlign: 'center' }}>
                 {p.save && <span style={{ position: 'absolute', top: -8, right: 4, background: '#25D366', color: 'white', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>{p.save}</span>}
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{p.price}</div>
@@ -435,7 +436,7 @@ function UpgradeModal({ onClose, activeProperty }) {
           {['pro_monthly', 'pro_yearly'].map(key => {
             const p = PLANS[key]
             return (
-              <button key={key} onClick={() => { openRazorpay(activeProperty, key); onClose() }}
+              <button key={key} onClick={() => { openRazorpay(activeProperty, key, profile); onClose() }}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: '2px solid #D85A30', background: '#D85A30', color: 'white', cursor: 'pointer', position: 'relative', textAlign: 'center' }}>
                 {p.save && <span style={{ position: 'absolute', top: -8, right: 4, background: '#25D366', color: 'white', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>{p.save}</span>}
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{p.price}</div>
@@ -557,11 +558,11 @@ function AppContent() {
             {/* Basic plans */}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Basic — Manual WhatsApp</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <button onClick={() => openRazorpay(activeProperty, 'basic_monthly')}
+              <button onClick={() => openRazorpay(activeProperty, 'basic_monthly', profile)}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: '2px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
                 ₹499/month
               </button>
-              <button onClick={() => openRazorpay(activeProperty, 'basic_yearly')}
+              <button onClick={() => openRazorpay(activeProperty, 'basic_yearly', profile)}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: '2px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', position: 'relative', fontWeight: 700, fontSize: 13 }}>
                 <span style={{ position: 'absolute', top: -8, right: 4, background: '#25D366', color: 'white', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>SAVE ₹1,989</span>
                 ₹3,999/year
@@ -572,11 +573,11 @@ function AppContent() {
             {/* Pro plans */}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8, letterSpacing: '0.5px' }}>Pro — Auto WhatsApp Reminders</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <button onClick={() => openRazorpay(activeProperty, 'pro_monthly')}
+              <button onClick={() => openRazorpay(activeProperty, 'pro_monthly', profile)}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: 'none', background: '#D85A30', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
                 ₹999/month
               </button>
-              <button onClick={() => openRazorpay(activeProperty, 'pro_yearly')}
+              <button onClick={() => openRazorpay(activeProperty, 'pro_yearly', profile)}
                 style={{ flex: 1, padding: '10px 8px', borderRadius: 'var(--radius)', border: 'none', background: '#D85A30', color: 'white', cursor: 'pointer', position: 'relative', fontWeight: 700, fontSize: 13 }}>
                 <span style={{ position: 'absolute', top: -8, right: 4, background: '#25D366', color: 'white', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>SAVE ₹3,989</span>
                 ₹7,999/year
@@ -820,7 +821,7 @@ function AppContent() {
       )}
 
       {showUpgradeModal && activeProperty && (
-        <UpgradeModal activeProperty={activeProperty} onClose={() => setShowUpgradeModal(false)} />
+        <UpgradeModal activeProperty={activeProperty} profile={profile} onClose={() => setShowUpgradeModal(false)} />
       )}
 
       {showAddProperty && (
