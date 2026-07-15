@@ -18,7 +18,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
 
   // Signup-only fields (email/password above are shared with the login form)
-  const [signupForm, setSignupForm] = useState({ full_name: '', property_name: '', city: '', gpay_number: '', address: '' })
+  const [signupForm, setSignupForm] = useState({ full_name: '', phone: '', property_name: '', city: '', gpay_number: '', address: '' })
   const [signupLoading, setSignupLoading] = useState(false)
   const setSignupField = (k) => (e) => setSignupForm(p => ({ ...p, [k]: e.target.value }))
 
@@ -59,6 +59,7 @@ export default function Login() {
     if (!signupForm.full_name.trim()) { setError('Please enter your full name.'); return }
     if (!email.trim()) { setError('Please enter your email.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (!signupForm.phone.trim() || signupForm.phone.trim().length < 10) { setError('Please enter a valid phone number.'); return }
     if (!signupForm.property_name.trim()) { setError('Please enter your property name.'); return }
 
     setSignupLoading(true)
@@ -73,6 +74,7 @@ export default function Login() {
           full_name: signupForm.full_name.trim(),
           email: email.trim().toLowerCase(),
           password,
+          phone: signupForm.phone.trim(),
           property_name: signupForm.property_name.trim(),
           city: signupForm.city.trim(),
           gpay_number: signupForm.gpay_number.trim(),
@@ -308,6 +310,18 @@ export default function Login() {
                       {showPassword ? '🙈' : '👁️'}
                     </button>
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Phone number</label>
+                  <input
+                    type="tel"
+                    placeholder="10 digits"
+                    value={signupForm.phone}
+                    onChange={setSignupField('phone')}
+                    autoComplete="tel"
+                    required
+                  />
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.5px' }}>

@@ -18,6 +18,7 @@ export default function Signup() {
     full_name: '',
     email: '',
     password: '',
+    phone: '',
     property_name: '',
     city: '',
     gpay_number: '',
@@ -36,6 +37,7 @@ export default function Signup() {
     if (!form.full_name.trim()) return setError('Please enter your full name.')
     if (!form.email.trim()) return setError('Please enter your email.')
     if (form.password.length < 6) return setError('Password must be at least 6 characters.')
+    if (!form.phone.trim() || form.phone.trim().length < 10) return setError('Please enter a valid phone number.')
     if (!form.property_name.trim()) return setError('Please enter your property name.')
 
     setLoading(true)
@@ -47,6 +49,7 @@ export default function Signup() {
           full_name: form.full_name.trim(),
           email: form.email.trim().toLowerCase(),
           password: form.password,
+          phone: form.phone.trim(),
           property_name: form.property_name.trim(),
           city: form.city.trim(),
           gpay_number: form.gpay_number.trim(),
@@ -105,6 +108,11 @@ export default function Signup() {
           <div className="signup-field">
             <label>Password <span className="req">*</span></label>
             <input type="password" value={form.password} onChange={set('password')} autoComplete="new-password" minLength={6} required />
+          </div>
+
+          <div className="signup-field">
+            <label>Phone number <span className="req">*</span></label>
+            <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" placeholder="10 digits" required />
           </div>
 
           <div className="signup-section">Property details</div>
