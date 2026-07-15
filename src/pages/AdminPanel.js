@@ -136,6 +136,14 @@ export default function AdminPanel() {
     return 'badge-amber'
   }
 
+  // Pavio bundles Pro across every property an owner has — if ANY property is
+  // pro/owned, the app treats all of that owner's properties as Pro (see
+  // `ownerIsProElsewhere` in App.js). This flag mirrors that so the admin
+  // panel doesn't show a property as "trial" when it's actually unlocked.
+  const isEffectivelyPro = (owner, prop) =>
+    prop.plan_type !== 'pro' && prop.plan_type !== 'owned' &&
+    owner.properties.some(p => p.plan_type === 'pro' || p.plan_type === 'owned')
+
   if (loading) return <div className="loading">Loading admin panel...</div>
 
   return (
@@ -208,6 +216,11 @@ export default function AdminPanel() {
                     <span className={`badge ${prop.subscription_status === 'active' ? 'badge-green' : 'badge-red'}`}>
                       {prop.subscription_status}
                     </span>
+                    {isEffectivelyPro(owner, prop) && (
+                      <span className="badge badge-green" title="This owner has Pro on another property, which unlocks Pro on all their properties — no separate payment needed.">
+                        ⚡ Effective: Pro
+                      </span>
+                    )}
                     {prop.plan_type !== 'owned' && (
                       <>
                         <select value={prop.plan_type}
