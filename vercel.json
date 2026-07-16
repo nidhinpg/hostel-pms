@@ -11,5 +11,15 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/((?!privacy).*)",
+      "destination": "/index.html"
+    }
   ]
 }
