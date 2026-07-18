@@ -858,7 +858,48 @@ function AppContent() {
   )
 }
 
-export default function App() {
+// ─── Offline banner ──────────────────────────────────────────────────────────
+// Plain browser online/offline events — no extra native plugin needed, and they
+// fire correctly inside the Capacitor WebView too since it tracks real device
+// connectivity. Shown above everything (login, landing, dashboard, etc.) so
+// staff/owners get a clear reason instead of a silently frozen screen.
+function OfflineBanner() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true)
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
+
+  if (isOnline) return null
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 9999,
+      background: '#D85A30',
+      color: '#fff',
+      textAlign: 'center',
+      padding: '8px 12px',
+      fontSize: 13,
+      fontWeight: 600,
+      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+    }}>
+      ⚠️ No internet connection — some features may not work
+    </div>
+  )
+}
+
+function AppRoot() {
   const path = window.location.pathname
   const isNative = Capacitor.isNativePlatform()
 
@@ -886,5 +927,14 @@ export default function App() {
     <AuthProvider>
       <AppContent />
     </AuthProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <>
+      <OfflineBanner />
+      <AppRoot />
+    </>
   )
 }
