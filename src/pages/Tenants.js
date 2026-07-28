@@ -15,8 +15,14 @@ function currentDate() {
 }
 
 export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all', canAddTenants = false, canCollectRent = false, canDeleteEntries = false }) {
-  const { activeProperty } = useAuth()
-  const isPro = activeProperty?.plan_type === 'pro' || activeProperty?.plan_type === 'owned'
+  const { activeProperty, properties } = useAuth()
+  // Pro is bundled owner-wide in Pavio (see `ownerIsProElsewhere` in App.js) —
+  // if ANY of the owner's properties is pro/owned, all of their properties are
+  // effectively Pro. Checking only activeProperty.plan_type here missed that,
+  // so owners with a property still marked "trial" in the DB (but unlocked via
+  // Pro on another property) never got automatic WhatsApp receipts — it fell
+  // through to the manual Basic-plan popup instead.
+  const isPro = properties.some(p => p.plan_type === 'pro' || p.plan_type === 'owned')
   const [tenants, setTenants] = useState([])
   const [vacatedTenants, setVacatedTenants] = useState([])
   const [vacantBeds, setVacantBeds] = useState([])
