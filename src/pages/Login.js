@@ -3,8 +3,23 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Capacitor } from '@capacitor/core'
 
-const SIGNUP_FN_URL = 'https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/signup-owner'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsbXFqa3l5anh0Ym5uZmJwbmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNDI0MDQsImV4cCI6MjA2MDgxODQwNH0.eVSHJCGCOi5j1zT40KGqHsRXbXDCwx8NJNC09zkahQE'
+// Login accepts either an email address or a phone number. Supabase Auth
+// only knows email, so a phone number needs to be resolved to its account's
+// email first (via the resolve-login-phone Edge Function) before the normal
+// signIn(email, password) call. Emails always contain '@', phone numbers
+// never do, so that's a reliable way to tell which one was typed.
+async function resolveToEmail(identifier) {
+  const value = identifier.trim()
+  if (value.includes('@')) return { email: value.toLowerCase() }
+
+  const { data, error } = await supabase.functions.invoke('resolve-login-phone', {
+    body: { phone: value }
+  })
+  if (error || data?.error) {
+    return { error: data?.error || 'No account found with this phone number' }
+  }
+  return { email: data.email }
+}
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -31,17 +46,35 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const err = await signIn(email, password)
+
+    const resolved = await resolveToEmail(email)
+    if (resolved.error) {
+      setError(resolved.error)
+      setLoading(false)
+      return
+    }
+
+    const err = await signIn(resolved.email, password)
     if (err) setError(err.message)
     setLoading(false)
   }
 
   const handleForgotPassword = async (e) => {
     e.preventDefault()
-    if (!email) { setError('Enter your email address first'); return }
+    if (!email) { setError('Enter your email or phone number first'); return }
     setError('')
     setResetLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+
+    const resolved = await resolveToEmail(email)
+    if (resolved.error) {
+      setError(resolved.error)
+      setResetLoading(false)
+      return
+    }
+    // Show the actual email the link went to, in case a phone number was typed.
+    setEmail(resolved.email)
+
+    const { error } = await supabase.auth.resetPasswordForEmail(resolved.email, {
       redirectTo: `${window.location.origin}/reset-password`
     })
     if (error) {
@@ -64,13 +97,11 @@ export default function Login() {
 
     setSignupLoading(true)
     try {
-      const res = await fetch(SIGNUP_FN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
+      // supabase.functions.invoke() automatically sends the current apikey —
+      // a manual fetch() here previously needed a hardcoded anon key, which
+      // silently goes stale if the project's key is ever rotated.
+      const { data, error: invokeErr } = await supabase.functions.invoke('signup-owner', {
+        body: {
           full_name: signupForm.full_name.trim(),
           email: email.trim().toLowerCase(),
           password,
@@ -79,12 +110,11 @@ export default function Login() {
           city: signupForm.city.trim(),
           gpay_number: signupForm.gpay_number.trim(),
           address: signupForm.address.trim(),
-        })
+        }
       })
-      const data = await res.json().catch(() => ({}))
 
-      if (!res.ok || data.error) {
-        setError(data.error || 'Signup failed. Please try again.')
+      if (invokeErr || data?.error) {
+        setError(data?.error || 'Signup failed. Please try again.')
         setSignupLoading(false)
         return
       }
@@ -142,12 +172,13 @@ export default function Login() {
             <form onSubmit={handleLogin}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div className="form-group">
-                  <label>Email address</label>
+                  <label>Email or phone number</label>
                   <input
-                    type="email"
-                    placeholder="you@example.com"
+                    type="text"
+                    placeholder="you@example.com or phone number"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
+                    autoComplete="username"
                     required
                     autoFocus
                   />
@@ -219,18 +250,19 @@ export default function Login() {
                 <form onSubmit={handleForgotPassword}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <div className="form-group">
-                      <label>Email address</label>
+                      <label>Email or phone number</label>
                       <input
-                        type="email"
-                        placeholder="you@example.com"
+                        type="text"
+                        placeholder="you@example.com or phone number"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
+                        autoComplete="username"
                         required
                         autoFocus
                       />
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg)', padding: '10px 12px', borderRadius: 6 }}>
-                      We'll send a password reset link to your email.
+                      We'll send a password reset link to the email on your account.
                     </div>
 
                     {error && (

@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import './Signup.css'
 
-const SIGNUP_FN_URL = 'https://elmqjkyyjxtbnnfbpndb.supabase.co/functions/v1/signup-owner'
-
 const LOGO = (
   <svg className="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="26" height="26">
     <rect width="512" height="512" fill="#D85A30" />
@@ -42,10 +40,12 @@ export default function Signup() {
 
     setLoading(true)
     try {
-      const res = await fetch(SIGNUP_FN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // supabase.functions.invoke() sends the current project apikey
+      // automatically. The previous manual fetch() here had no apikey header
+      // at all, which Supabase's gateway generally rejects outright — web
+      // signup was likely failing before it ever reached this function.
+      const { data, error: invokeErr } = await supabase.functions.invoke('signup-owner', {
+        body: {
           full_name: form.full_name.trim(),
           email: form.email.trim().toLowerCase(),
           password: form.password,
@@ -54,12 +54,11 @@ export default function Signup() {
           city: form.city.trim(),
           gpay_number: form.gpay_number.trim(),
           address: form.address.trim(),
-        }),
+        }
       })
-      const data = await res.json()
 
-      if (!res.ok || data.error) {
-        setError(data.error || 'Signup failed. Please try again.')
+      if (invokeErr || data?.error) {
+        setError(data?.error || 'Signup failed. Please try again.')
         setLoading(false)
         return
       }
