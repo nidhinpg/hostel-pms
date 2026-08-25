@@ -108,6 +108,8 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
   const handleCollectRent = async () => {
     if (!collectAmount) { showToast('Enter amount'); return }
+    if (saving) return
+    setSaving(true)
     const amount = parseInt(collectAmount)
 
     let stayEndDate = null
@@ -123,7 +125,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
       days_paid: isPartialPay && daysPaid ? parseInt(daysPaid) : null,
       stay_end_date: stayEndDate
     }, { onConflict: 'tenant_id,month' })
-    if (error) { showToast('Error: ' + error.message); return }
+    if (error) { showToast('Error: ' + error.message); setSaving(false); return }
 
     const desc = isPartialPay && daysPaid
       ? `${selectedTenant.name} — ${daysPaid} days rent (till ${stayEndDate})`
@@ -174,6 +176,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
     showToast(`Rent collected from ${selectedTenant.name}`)
     setShowCollect(false)
+    setSaving(false)
     load()
   }
 
@@ -195,8 +198,12 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     load()
   }
 
+  const [saving, setSaving] = useState(false)
+
   const handleAdd = async () => {
     if (!form.name || !form.bed_id || !form.rent) { showToast('Fill name, bed and rent'); return }
+    if (saving) return
+    setSaving(true)
     const rent = parseInt(form.rent) || 0
     const advance = parseInt(form.advance) || 0
     const { error } = await supabase.from('tenants').insert({
@@ -204,7 +211,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
       bed_id: form.bed_id, movein_date: form.movein_date,
       rent, advance, status: 'active', property_id: propertyId
     })
-    if (error) { showToast('Error: ' + error.message); return }
+    if (error) { showToast('Error: ' + error.message); setSaving(false); return }
     await supabase.from('beds').update({ status: 'occupied' }).eq('id', form.bed_id).eq('property_id', propertyId)
     if (advance > 0) {
       await supabase.from('transactions').insert({
@@ -214,6 +221,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     }
     showToast('Tenant added!')
     setShowAdd(false)
+    setSaving(false)
     setForm({ name: '', phone: '', aadhar: '', bed_id: '', movein_date: currentDate(), rent: '', advance: '' })
     load()
   }
@@ -603,7 +611,7 @@ Thank you! — ${hostelName}`
           footer={
             <>
               <button className="btn" onClick={() => setShowCollect(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleCollectRent}>Confirm payment</button>
+              <button className="btn btn-primary" onClick={handleCollectRent} disabled={saving}>{saving ? 'Saving...' : 'Confirm payment'}</button>
             </>
           }>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -682,7 +690,7 @@ Thank you! — ${hostelName}`
           footer={
             <>
               <button className="btn" onClick={() => setShowAdd(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAdd}>Save tenant</button>
+              <button className="btn btn-primary" onClick={handleAdd} disabled={saving}>{saving ? 'Saving...' : 'Save tenant'}</button>
             </>
           }>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
