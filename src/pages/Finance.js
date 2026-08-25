@@ -146,16 +146,21 @@ export default function Finance({ propertyId, isStaff = false, canDelete = false
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
+  const [saving, setSaving] = useState(false)
+
   const handleAdd = async () => {
     if (!form.amount) { showToast('Enter amount'); return }
+    if (saving) return
+    setSaving(true)
     const { error } = await supabase.from('transactions').insert({
       date: form.date, type: form.type, category: form.category,
       description: form.description, amount: parseInt(form.amount),
       property_id: propertyId
     })
-    if (error) { showToast('Error: ' + error.message); return }
+    if (error) { showToast('Error: ' + error.message); setSaving(false); return }
     showToast('Entry saved!')
     setShowAdd(false)
+    setSaving(false)
     setForm({ date: new Date().toISOString().slice(0, 10), type: 'income', category: 'Rent', description: '', amount: '' })
     load()
   }
@@ -391,7 +396,7 @@ export default function Finance({ propertyId, isStaff = false, canDelete = false
       {/* Add entry modal */}
       {showAdd && (
         <Modal title="Add entry" onClose={() => setShowAdd(false)}
-          footer={<><button className="btn" onClick={() => setShowAdd(false)}>Cancel</button><button className="btn btn-primary" onClick={handleAdd}>Save</button></>}>
+          footer={<><button className="btn" onClick={() => setShowAdd(false)}>Cancel</button><button className="btn btn-primary" onClick={handleAdd} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button></>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="form-grid">
               <div className="form-group"><label>Date</label><input type="date" value={form.date} onChange={f('date')} /></div>
