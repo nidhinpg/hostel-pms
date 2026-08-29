@@ -35,6 +35,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [collectAmount, setCollectAmount] = useState('')
   const [collectDate, setCollectDate] = useState(currentDate())
+  const [collectMonth, setCollectMonth] = useState(currentMonth())
   const [vacateDate, setVacateDate] = useState(currentDate())
   const [daysPaid, setDaysPaid] = useState('')
   const [isPartialPay, setIsPartialPay] = useState(false)
@@ -53,12 +54,18 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   useEffect(() => { setFilterStatus(initialFilter) }, [initialFilter])
 
   const load = useCallback(async () => {
-    const [t, vacated, b, rp] = await Promise.all([
+    const [t, vacated, b] = await Promise.all([
       supabase.from('tenants').select('*').eq('property_id', propertyId).neq('status', 'vacated').order('name'),
       supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'vacated').order('vacate_date', { ascending: false, nullsFirst: false }),
       supabase.from('beds').select('id').eq('property_id', propertyId).eq('status', 'vacant').order('id'),
-      supabase.from('rent_payments').select('tenant_id, amount, paid_date, stay_end_date, days_paid').eq('property_id', propertyId).eq('month', month),
     ])
+    const activeIds = (t.data || []).map(x => x.id)
+    // Fetch full payment history (not just the current month) for active tenants —
+    // otherwise once a new month starts, an unpaid older month silently disappears
+    // from view instead of showing up as overdue.
+    const rp = activeIds.length
+      ? await supabase.from('rent_payments').select('tenant_id, month, amount, paid_date, stay_end_date, days_paid').eq('property_id', propertyId).in('tenant_id', activeIds)
+      : { data: [] }
     setTenants(t.data || [])
     setVacatedTenants(vacated.data || [])
     setVacantBeds(b.data || [])
@@ -69,11 +76,37 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   useEffect(() => { load() }, [load])
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
-  const isPaid = id => rentPayments.some(r => r.tenant_id === id)
-  const getPayment = id => rentPayments.find(r => r.tenant_id === id)
+  const isPaidForMonth = (tenantId, m) => rentPayments.some(r => r.tenant_id === tenantId && r.month === m)
+  const getPaymentForMonth = (tenantId, m) => rentPayments.find(r => r.tenant_id === tenantId && r.month === m)
+  const isPaid = id => isPaidForMonth(id, month)
+  const getPayment = id => getPaymentForMonth(id, month)
+
+  // Every month from move-in through the current month that has no matching
+  // rent_payments row — i.e. everything still owed, including past months.
+  const monthsBetweenInclusive = (start, end) => {
+    const [sy, sm] = start.split('-').map(Number)
+    const [ey, em] = end.split('-').map(Number)
+    const months = []
+    let y = sy, m = sm
+    while (y < ey || (y === ey && m <= em)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`)
+      m++
+      if (m > 12) { m = 1; y++ }
+    }
+    return months
+  }
+  const getDueMonths = (tenant) => {
+    if (!tenant.movein_date) return []
+    const startMonth = tenant.movein_date.slice(0, 7)
+    if (startMonth > month) return []
+    return monthsBetweenInclusive(startMonth, month).filter(m => !isPaidForMonth(tenant.id, m))
+  }
 
   const getRentStatus = (tenant) => {
-    if (isPaid(tenant.id)) return 'paid'
+    const dueMonths = getDueMonths(tenant)
+    if (dueMonths.length === 0) return 'paid'
+    const pastDue = dueMonths.filter(m => m !== month)
+    if (pastDue.length > 0) return 'due' // overdue from an earlier month — always due, no grace period
     const today = new Date()
     const todayDay = today.getDate()
     const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
@@ -92,9 +125,11 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   }
 
   const openCollect = (tenant) => {
+    const dueMonths = getDueMonths(tenant)
     setSelectedTenant(tenant)
     setCollectAmount(String(tenant.rent))
     setCollectDate(currentDate())
+    setCollectMonth(dueMonths[0] || month)
     setDaysPaid('')
     setIsPartialPay(false)
     setShowCollect(true)
@@ -120,7 +155,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     }
 
     const { error } = await supabase.from('rent_payments').upsert({
-      tenant_id: selectedTenant.id, month, amount,
+      tenant_id: selectedTenant.id, month: collectMonth, amount,
       paid_date: collectDate, property_id: propertyId,
       days_paid: isPartialPay && daysPaid ? parseInt(daysPaid) : null,
       stay_end_date: stayEndDate
@@ -129,7 +164,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
     const desc = isPartialPay && daysPaid
       ? `${selectedTenant.name} — ${daysPaid} days rent (till ${stayEndDate})`
-      : `${selectedTenant.name} — ${month} rent`
+      : `${selectedTenant.name} — ${collectMonth} rent`
 
     await supabase.from('transactions').insert({
       date: collectDate, type: 'income', category: 'Rent',
@@ -150,7 +185,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
             property_id: propertyId,
             amount,
             paid_date: collectDate,
-            month
+            month: collectMonth
           }
         }).then(({ data, error }) => {
           if (error) console.log('[receipt] error:', error)
@@ -165,7 +200,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
           bed: selectedTenant.bed_id,
           amount,
           date: collectDate,
-          month,
+          month: collectMonth,
           isPartial: isPartialPay && !!daysPaid,
           days: daysPaid,
           from: selectedTenant.movein_date,
@@ -229,7 +264,10 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const getWhatsAppMsg = (tenant) => {
     const hostelName = activeProperty?.name || 'Hosteloops'
     const gpay = activeProperty?.gpay_number || ''
-    const msg = `Hi ${tenant.name.split(' ')[0]}, your rent of ${fmt(tenant.rent)} for ${month} is due. Please pay via GPay to ${gpay} (${hostelName}). Thank you! — ${hostelName}`
+    const dueMonths = getDueMonths(tenant)
+    const msg = dueMonths.length > 1
+      ? `Hi ${tenant.name.split(' ')[0]}, your rent for ${dueMonths.length} months (${fmt(dueMonths.length * tenant.rent)} total, since ${dueMonths[0]}) is pending. Please pay via GPay to ${gpay} (${hostelName}). Thank you! — ${hostelName}`
+      : `Hi ${tenant.name.split(' ')[0]}, your rent of ${fmt(tenant.rent)} for ${month} is due. Please pay via GPay to ${gpay} (${hostelName}). Thank you! — ${hostelName}`
     return `https://wa.me/91${tenant.phone}?text=${encodeURIComponent(msg)}`
   }
 
@@ -265,15 +303,18 @@ Thank you! — ${hostelName}`
   ].join('\n')
 
   const getActiveRows = () => {
-    const headers = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Monthly Rent', 'Advance', 'Payment Status', 'Amount Paid']
+    const headers = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Monthly Rent', 'Advance', 'Payment Status', 'Amount Paid', 'Months Overdue', 'Total Due (₹)']
     const rows = tenants.map(t => {
-      const payment = rentPayments.find(p => p.tenant_id === t.id)
+      const payment = getPayment(t.id)
       const status = getRentStatus(t)
+      const dueMonths = getDueMonths(t)
       return [
         t.name, t.phone || '', t.aadhar || '', t.bed_id || '',
         t.movein_date || '', t.rent || '', t.advance || '',
         status === 'paid' ? 'Paid' : status === 'due' ? 'Due' : 'Upcoming',
-        payment ? payment.amount : ''
+        payment ? payment.amount : '',
+        dueMonths.length || '',
+        dueMonths.length ? dueMonths.length * t.rent : ''
       ]
     })
     return { headers, rows }
@@ -405,7 +446,7 @@ Thank you! — ${hostelName}`
   const paidThisMonth = tenants.filter(t => isPaid(t.id)).length
   const unpaidCount = tenants.filter(t => getRentStatus(t) === 'due').length
   const upcomingCount = tenants.filter(t => getRentStatus(t) === 'upcoming').length
-  const totalRentDue = tenants.filter(t => getRentStatus(t) === 'due').reduce((a, t) => a + t.rent, 0)
+  const totalRentDue = tenants.filter(t => getRentStatus(t) === 'due').reduce((a, t) => a + getDueMonths(t).length * t.rent, 0)
 
   const filteredTenants = tenants.filter(t => {
     const matchesStatus = filterStatus === 'paid' ? getRentStatus(t) === 'paid'
@@ -502,6 +543,7 @@ Thank you! — ${hostelName}`
                       const payment = getPayment(t.id)
                       const daysLeft = getDaysRemaining(t.id)
                       const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
+                      const dueMonths = getDueMonths(t)
                       return (
                         <tr key={t.id}>
                           <td>
@@ -532,7 +574,14 @@ Thank you! — ${hostelName}`
                             ) : status === 'upcoming' ? (
                               <span className="badge badge-amber">Due on {joinDay}th</span>
                             ) : (
-                              <span className="badge badge-red">Due</span>
+                              <div>
+                                <span className="badge badge-red">Due</span>
+                                {dueMonths.length > 1 && (
+                                  <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 2, fontWeight: 500 }}>
+                                    {dueMonths.length} months since {dueMonths[0]} · {fmt(dueMonths.length * t.rent)}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td>
@@ -620,6 +669,19 @@ Thank you! — ${hostelName}`
               <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Bed</span><span>{selectedTenant.bed_id}</span></div>
               <div className="row-between"><span style={{ color: 'var(--text-secondary)' }}>Monthly rent</span><span style={{ fontWeight: 600 }}>₹{Number(selectedTenant.rent).toLocaleString('en-IN')}</span></div>
             </div>
+            {getDueMonths(selectedTenant).length > 1 && (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--red)', background: 'var(--red-bg)', padding: '8px 12px', borderRadius: 6 }}>
+                  {selectedTenant.name.split(' ')[0]} owes {getDueMonths(selectedTenant).length} months · total {fmt(getDueMonths(selectedTenant).length * selectedTenant.rent)}
+                </div>
+                <div className="form-group">
+                  <label>Which month is this payment for?</label>
+                  <select value={collectMonth} onChange={e => setCollectMonth(e.target.value)}>
+                    {getDueMonths(selectedTenant).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
             <div className="form-grid">
               <div className="form-group"><label>Amount (₹)</label><input type="number" value={collectAmount} onChange={e => setCollectAmount(e.target.value)} /></div>
               <div className="form-group"><label>Payment date</label><input type="date" value={collectDate} onChange={e => setCollectDate(e.target.value)} /></div>
