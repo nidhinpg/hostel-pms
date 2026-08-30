@@ -46,8 +46,13 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
   const isPaid = (tenantId) => rentPayments.some(r => r.tenant_id === tenantId)
   const isDue = (tenant) => {
     if (!tenant || isPaid(tenant.id)) return false
+    if (!tenant.movein_date) return true
+    const moveinMonth = tenant.movein_date.slice(0, 7)
+    const month = currentMonth()
+    if (moveinMonth > month) return false // hasn't moved in yet as of this month
+    if (moveinMonth < month) return true // moved in an earlier month — already overdue
     const todayDay = new Date().getDate()
-    const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
+    const joinDay = parseInt(tenant.movein_date.split('-')[2])
     return todayDay >= joinDay - 1
   }
 
