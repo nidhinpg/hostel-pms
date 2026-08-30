@@ -16,11 +16,17 @@ function getMonthRange(month) {
   return { start, end }
 }
 
-// Tenant is "due" only if today >= their movein day AND not paid
-function isTenantDue(tenant, paidIds) {
+// Tenant is "due" only if their movein month has started (not a future month),
+// today >= their movein day, and not paid. A tenant added with a movein_date in a
+// later month (e.g. joining next month) must never show as due for the current month.
+function isTenantDue(tenant, paidIds, month) {
   if (paidIds.includes(tenant.id)) return false
+  if (!tenant.movein_date) return true
+  const moveinMonth = tenant.movein_date.slice(0, 7)
+  if (moveinMonth > month) return false // hasn't moved in yet as of this month
+  if (moveinMonth < month) return true // moved in an earlier month — already overdue
   const todayDay = new Date().getDate()
-  const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
+  const joinDay = parseInt(tenant.movein_date.split('-')[2])
   return todayDay >= joinDay - 1  // show 1 day before due date
 }
 
@@ -58,8 +64,8 @@ const paidIds = (paymentsRes.data || [])
     const expense = tx.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0)
 
     // Only tenants whose rent day has passed
-    const due = tenants.filter(t => isTenantDue(t, paidIds))
-    const upcoming = tenants.filter(t => !paidIds.includes(t.id) && !isTenantDue(t, paidIds))
+    const due = tenants.filter(t => isTenantDue(t, paidIds, month))
+    const upcoming = tenants.filter(t => !paidIds.includes(t.id) && !isTenantDue(t, paidIds, month))
     const paidCount = paidIds.length
 
     // Find tenants whose stay ends in 3 days or less
