@@ -37,7 +37,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     const [b, t, rp] = await Promise.all([
       supabase.from('beds').select('*').eq('property_id', propertyId).order('id'),
       supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'active'),
-      supabase.from('rent_payments').select('tenant_id').eq('property_id', propertyId).eq('month', currentMonth()),
+      supabase.from('rent_payments').select('tenant_id, month').eq('property_id', propertyId),
     ])
     setBeds(b.data || [])
     setTenants(t.data || [])
@@ -50,14 +50,42 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 2500) }
   const getTenant = bedId => tenants.find(t => t.bed_id === bedId)
 
-  const isPaid = (tenantId) => rentPayments.some(r => r.tenant_id === tenantId)
-  const isDue = (tenant) => {
-    if (!tenant || isPaid(tenant.id)) return false
-    if (!tenant.movein_date) return true
-    const moveinMonth = tenant.movein_date.slice(0, 7)
+  const isPaidForMonth = (tenantId, m) => rentPayments.some(r => r.tenant_id === tenantId && r.month === m)
+  const isPaid = (tenantId) => isPaidForMonth(tenantId, currentMonth())
+
+  const monthsBetweenInclusive = (start, end) => {
+    const [sy, sm] = start.split('-').map(Number)
+    const [ey, em] = end.split('-').map(Number)
+    const months = []
+    let y = sy, m = sm
+    while (y < ey || (y === ey && m <= em)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`)
+      m++
+      if (m > 12) { m = 1; y++ }
+    }
+    return months
+  }
+
+  // Every month from move-in through the current month with no matching
+  // rent_payments row — mirrors the arrears logic in Tenants.js so Bed map
+  // agrees with the Tenants tab on who's actually due. Checking only "paid
+  // this month" made every existing tenant flip to Due the instant a new
+  // month started, since day 1 obviously has no payment yet for anyone.
+  const getDueMonths = (tenant) => {
+    if (!tenant || !tenant.movein_date) return []
     const month = currentMonth()
-    if (moveinMonth > month) return false // hasn't moved in yet as of this month
-    if (moveinMonth < month) return true // moved in an earlier month — already overdue
+    const startMonth = tenant.movein_date.slice(0, 7)
+    if (startMonth > month) return []
+    return monthsBetweenInclusive(startMonth, month).filter(m => !isPaidForMonth(tenant.id, m))
+  }
+
+  const isDue = (tenant) => {
+    if (!tenant) return false
+    const dueMonths = getDueMonths(tenant)
+    if (dueMonths.length === 0) return false
+    const month = currentMonth()
+    const pastDue = dueMonths.filter(m => m !== month)
+    if (pastDue.length > 0) return true
     const todayDay = new Date().getDate()
     const joinDay = parseInt(tenant.movein_date.split('-')[2])
     return todayDay >= joinDay - 1
