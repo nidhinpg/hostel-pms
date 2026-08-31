@@ -16,18 +16,39 @@ function getMonthRange(month) {
   return { start, end }
 }
 
-// Tenant is "due" only if their movein month has started (not a future month),
-// today >= their movein day, and not paid. A tenant added with a movein_date in a
-// later month (e.g. joining next month) must never show as due for the current month.
-function isTenantDue(tenant, paidIds, month) {
-  if (paidIds.includes(tenant.id)) return false
-  if (!tenant.movein_date) return true
-  const moveinMonth = tenant.movein_date.slice(0, 7)
-  if (moveinMonth > month) return false // hasn't moved in yet as of this month
-  if (moveinMonth < month) return true // moved in an earlier month — already overdue
+function monthsBetweenInclusive(start, end) {
+  const [sy, sm] = start.split('-').map(Number)
+  const [ey, em] = end.split('-').map(Number)
+  const months = []
+  let y = sy, m = sm
+  while (y < ey || (y === ey && m <= em)) {
+    months.push(`${y}-${String(m).padStart(2, '0')}`)
+    m++
+    if (m > 12) { m = 1; y++ }
+  }
+  return months
+}
+
+// Every month from move-in through the current month that has no matching
+// rent_payments row — mirrors the arrears logic in Tenants.js so Dashboard
+// and Bed map agree with the Tenants tab on who's actually due. Checking only
+// "paid this month" here made every existing tenant flip to Due the instant a
+// new month started, since day 1 obviously has no payment yet for anyone.
+function getDueMonths(tenant, paidSet, month) {
+  if (!tenant.movein_date) return []
+  const startMonth = tenant.movein_date.slice(0, 7)
+  if (startMonth > month) return []
+  return monthsBetweenInclusive(startMonth, month).filter(m => !paidSet.has(`${tenant.id}|${m}`))
+}
+
+function getRentStatus(tenant, paidSet, month) {
+  const dueMonths = getDueMonths(tenant, paidSet, month)
+  if (dueMonths.length === 0) return 'paid'
+  const pastDue = dueMonths.filter(m => m !== month)
+  if (pastDue.length > 0) return 'due' // overdue from an earlier month — always due, no grace period
   const todayDay = new Date().getDate()
-  const joinDay = parseInt(tenant.movein_date.split('-')[2])
-  return todayDay >= joinDay - 1  // show 1 day before due date
+  const joinDay = tenant.movein_date ? parseInt(tenant.movein_date.split('-')[2]) : 1
+  return todayDay >= joinDay - 1 ? 'due' : 'upcoming' // show 1 day before due date
 }
 
 export default function Dashboard({ onNavigate, propertyId, propertyName }) {
@@ -47,7 +68,7 @@ export default function Dashboard({ onNavigate, propertyId, propertyName }) {
       supabase.from('transactions').select('type,amount').eq('property_id', propertyId).gte('date', start).lte('date', end),
       supabase.from('transactions').select('*').eq('property_id', propertyId).order('date', { ascending: false }).limit(6),
       supabase.from('tenants').select('*').eq('property_id', propertyId).eq('status', 'active'),
-      supabase.from('rent_payments').select('tenant_id').eq('property_id', propertyId).eq('month', month),
+      supabase.from('rent_payments').select('tenant_id, month').eq('property_id', propertyId),
       supabase.from('rent_payments').select('tenant_id, stay_end_date, days_paid').eq('property_id', propertyId).eq('month', month).not('stay_end_date', 'is', null),
     ])
 
@@ -55,18 +76,20 @@ export default function Dashboard({ onNavigate, propertyId, propertyName }) {
     const tx = txRes.data || []
     const tenants = tenantsRes.data || []
     const activeIds = tenants.map(t => t.id)
-const paidIds = (paymentsRes.data || [])
-  .map(p => p.tenant_id)
-  .filter(id => activeIds.includes(id))
+    const paidSet = new Set((paymentsRes.data || [])
+      .filter(p => activeIds.includes(p.tenant_id))
+      .map(p => `${p.tenant_id}|${p.month}`))
 
     const occupied = beds.filter(b => b.status === 'occupied').length
     const income = tx.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0)
     const expense = tx.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0)
 
-    // Only tenants whose rent day has passed
-    const due = tenants.filter(t => isTenantDue(t, paidIds, month))
-    const upcoming = tenants.filter(t => !paidIds.includes(t.id) && !isTenantDue(t, paidIds, month))
-    const paidCount = paidIds.length
+    // Only tenants with real arrears — checks every month since move-in, not just this one
+    const due = tenants
+      .filter(t => getRentStatus(t, paidSet, month) === 'due')
+      .map(t => ({ ...t, dueMonthsCount: getDueMonths(t, paidSet, month).length }))
+    const upcoming = tenants.filter(t => getRentStatus(t, paidSet, month) === 'upcoming')
+    const paidCount = tenants.filter(t => paidSet.has(`${t.id}|${month}`)).length
 
     // Find tenants whose stay ends in 3 days or less
     const today = new Date()
@@ -159,7 +182,7 @@ const paidIds = (paymentsRes.data || [])
           </div>
           <div style={{ flex: 1, minWidth: 80, background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
-              {fmt(dueTenants.reduce((a, t) => a + t.rent, 0))}
+              {fmt(dueTenants.reduce((a, t) => a + (t.dueMonthsCount || 1) * t.rent, 0))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Outstanding</div>
           </div>
@@ -182,7 +205,7 @@ const paidIds = (paymentsRes.data || [])
                   }}>
                     <span style={{ fontWeight: 500, color: 'var(--red)' }}>{t.name.split(' ')[0]}</span>
                     <span style={{ color: 'var(--text-secondary)' }}>{t.bed_id}</span>
-                    <span style={{ color: 'var(--red)', fontWeight: 600 }}>{fmt(t.rent)}</span>
+                    <span style={{ color: 'var(--red)', fontWeight: 600 }}>{fmt((t.dueMonthsCount || 1) * t.rent)}</span>
                     <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>due {joinDay}th</span>
                   </div>
                 )
