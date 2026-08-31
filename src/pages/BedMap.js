@@ -13,6 +13,11 @@ function currentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
+function currentDate() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
 export default function BedMap({ propertyId, isStaff = false, canAddBeds = true }) {
   const [beds, setBeds] = useState([])
   const [tenants, setTenants] = useState([])
@@ -20,6 +25,8 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [showVacate, setShowVacate] = useState(false)
+  const [vacateDate, setVacateDate] = useState(currentDate())
 
   const [addMode, setAddMode] = useState('single')
   const [newBed, setNewBed] = useState({ id: '' })
@@ -63,13 +70,14 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     return acc
   }, {})
 
-  const handleSetStatus = async (status) => {
-    await supabase.from('beds').update({ status }).eq('id', selected.id).eq('property_id', propertyId)
-    if (status === 'vacant') {
-      const t = getTenant(selected.id)
-      if (t) await supabase.from('tenants').update({ status: 'vacated' }).eq('id', t.id)
+  const handleVacate = async () => {
+    const t = getTenant(selected.id)
+    if (t) {
+      await supabase.from('tenants').update({ status: 'vacated', vacate_date: vacateDate }).eq('id', t.id)
     }
-    showToast(`Bed marked as ${status}`)
+    await supabase.from('beds').update({ status: 'vacant' }).eq('id', selected.id).eq('property_id', propertyId)
+    showToast(t ? `${t.name} vacated successfully` : 'Bed marked as vacant')
+    setShowVacate(false)
     setSelected(null)
     load()
   }
@@ -339,7 +347,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
       })()}
 
       {/* Bed detail modal */}
-      {selected && (() => {
+      {selected && !showVacate && (() => {
         const t = getTenant(selected.id)
         const due = isDue(t)
         const paid = t ? isPaid(t.id) : false
@@ -348,7 +356,7 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
             footer={
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {(!isStaff || canAddBeds) && selected.status === 'vacant' && <button className="btn btn-danger" onClick={handleDeleteBed}>Delete bed</button>}
-                {!isStaff && selected.status !== 'vacant' && <button className="btn" onClick={() => handleSetStatus('vacant')}>Mark vacant</button>}
+                {!isStaff && selected.status !== 'vacant' && <button className="btn" onClick={() => { setVacateDate(currentDate()); setShowVacate(true) }}>Mark vacant</button>}
                 <button className="btn" onClick={() => setSelected(null)}>Close</button>
               </div>
             }>
@@ -402,6 +410,39 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
               ) : (
                 <div className="empty" style={{ padding: '20px 0' }}>No tenant assigned</div>
               )}
+            </div>
+          </Modal>
+        )
+      })()}
+
+      {/* VACATE MODAL */}
+      {showVacate && selected && (() => {
+        const t = getTenant(selected.id)
+        return (
+          <Modal title={t ? `Vacate — ${t.name}` : `Mark bed ${selected.id} vacant`} onClose={() => setShowVacate(false)}
+            footer={
+              <>
+                <button className="btn" onClick={() => setShowVacate(false)}>Cancel</button>
+                <button className="btn btn-danger" onClick={handleVacate}>Confirm vacate</button>
+              </>
+            }>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {t && (
+                <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+                  <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Tenant</span><span style={{ fontWeight: 500 }}>{t.name}</span></div>
+                  <div className="row-between" style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-secondary)' }}>Bed</span><span>{selected.id}</span></div>
+                  <div className="row-between"><span style={{ color: 'var(--text-secondary)' }}>Move-in</span><span>{t.movein_date}</span></div>
+                </div>
+              )}
+              {t && (
+                <div className="form-group">
+                  <label>Vacate date</label>
+                  <input type="date" value={vacateDate} onChange={e => setVacateDate(e.target.value)} />
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: 'var(--red)', background: 'var(--red-bg)', padding: '8px 12px', borderRadius: 6 }}>
+                This will free up bed {selected.id}{t ? ' and move tenant to vacated history.' : '.'}
+              </div>
             </div>
           </Modal>
         )
