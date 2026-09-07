@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 
 const PLAN_TYPES = ['trial', 'pro']
 
 export default function AdminPanel() {
+  const { user } = useAuth()
   const [owners, setOwners] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddOwner, setShowAddOwner] = useState(false)
@@ -108,34 +110,21 @@ export default function AdminPanel() {
     if (addingProperty) return
     setAddingProperty(true)
 
-    // Mirrors the add-property Edge Function's pattern: create the property first,
-    // capture its real id, then link owner <-> property via a profiles row using
-    // that id. profiles' primary key is (id, property_id) — property_id can never
-    // be null, which is why the old code silently failed to link every time and left
-    // orphaned, invisible properties behind.
-    const { data: propData, error } = await supabase.from('properties').insert({
-      owner_id: selectedOwner.id,
-      ...propForm
-    }).select().single()
-
-    if (error || !propData) {
-      showToast('Error: ' + (error?.message || 'Could not create property'))
-      setAddingProperty(false)
-      return
-    }
-
-    const { error: profErr } = await supabase.from('profiles').insert({
-      id: selectedOwner.id,
-      property_id: propData.id,
-      full_name: selectedOwner.full_name,
-      role: 'owner',
-      is_admin: false
+    // profiles has RLS enabled with no INSERT policy at all, so a client-side
+    // insert (even from an admin's own logged-in session) is always silently
+    // rejected by Postgres — that's why admin-added properties were created
+    // but never linked to an owner. This calls a service-role Edge Function
+    // instead, the same pattern used by add-property and signup-owner.
+    const { data, error } = await supabase.functions.invoke('admin-add-property', {
+      body: {
+        admin_id: user?.id,
+        owner_id: selectedOwner.id,
+        ...propForm
+      }
     })
 
-    if (profErr) {
-      // Roll back the property so we don't leave an orphaned row behind
-      await supabase.from('properties').delete().eq('id', propData.id)
-      showToast('Error linking property: ' + profErr.message)
+    if (error || data?.error) {
+      showToast('Error: ' + (data?.error || error?.message || 'Could not add property'))
       setAddingProperty(false)
       return
     }
