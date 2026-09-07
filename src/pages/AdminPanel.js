@@ -177,7 +177,7 @@ export default function AdminPanel() {
         <div className="metric">
           <div className="metric-label">Active subscriptions</div>
           <div className="metric-value" style={{ color: 'var(--green)' }}>
-            {owners.reduce((a, o) => a + o.properties.filter(p => p.subscription_status === 'active').length, 0)}
+            {owners.reduce((a, o) => a + o.properties.filter(p => p.plan_type !== 'trial' && p.subscription_status === 'active').length, 0)}
           </div>
         </div>
         <div className="metric">
