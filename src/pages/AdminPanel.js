@@ -12,6 +12,7 @@ export default function AdminPanel() {
   const [showAddProperty, setShowAddProperty] = useState(false)
   const [toast, setToast] = useState('')
   const [creating, setCreating] = useState(false)
+  const [addingProperty, setAddingProperty] = useState(false)
 
   const [form, setForm] = useState({
     full_name: '', email: '', password: '',
@@ -104,24 +105,45 @@ export default function AdminPanel() {
 
   const handleAddProperty = async () => {
     if (!propForm.name || !selectedOwner) { showToast('Fill property name'); return }
-    const { error } = await supabase.from('properties').insert({
+    if (addingProperty) return
+    setAddingProperty(true)
+
+    // Mirrors the add-property Edge Function's pattern: create the property first,
+    // capture its real id, then link owner <-> property via a profiles row using
+    // that id. profiles' primary key is (id, property_id) — property_id can never
+    // be null, which is why the old code silently failed to link every time and left
+    // orphaned, invisible properties behind.
+    const { data: propData, error } = await supabase.from('properties').insert({
       owner_id: selectedOwner.id,
       ...propForm
-    })
-    if (error) { showToast('Error: ' + error.message); return }
+    }).select().single()
 
-    // Also insert a new profile row for this owner+property
-    await supabase.from('profiles').insert({
+    if (error || !propData) {
+      showToast('Error: ' + (error?.message || 'Could not create property'))
+      setAddingProperty(false)
+      return
+    }
+
+    const { error: profErr } = await supabase.from('profiles').insert({
       id: selectedOwner.id,
+      property_id: propData.id,
       full_name: selectedOwner.full_name,
       role: 'owner',
-      is_admin: false,
-      property_id: null // will be updated after property created
-    }).select().single()
+      is_admin: false
+    })
+
+    if (profErr) {
+      // Roll back the property so we don't leave an orphaned row behind
+      await supabase.from('properties').delete().eq('id', propData.id)
+      showToast('Error linking property: ' + profErr.message)
+      setAddingProperty(false)
+      return
+    }
 
     showToast('Property added!')
     setShowAddProperty(false)
     setPropForm({ name: '', address: '', city: '', plan_type: 'trial', subscription_status: 'active', trial_end_date: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10), gpay_number: '' })
+    setAddingProperty(false)
     load()
   }
 
@@ -300,7 +322,7 @@ export default function AdminPanel() {
           footer={
             <>
               <button className="btn" onClick={() => setShowAddProperty(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAddProperty}>Add property</button>
+              <button className="btn btn-primary" onClick={handleAddProperty} disabled={addingProperty}>{addingProperty ? 'Adding...' : 'Add property'}</button>
             </>
           }>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
