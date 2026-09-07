@@ -195,9 +195,15 @@ export default function AdminPanel() {
             <div>
               <div style={{ fontWeight: 600, fontSize: 15 }}>{owner.full_name}</div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{owner.id}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {owner.email && <a href={`mailto:${owner.email}`} style={{ color: 'inherit' }}>✉️ {owner.email}</a>}
+            {owner.phone && <a href={`tel:${owner.phone}`} style={{ color: 'inherit' }}>📞 {owner.phone}</a>}
+            {!owner.email && !owner.phone && <span style={{ fontStyle: 'italic' }}>No contact info</span>}
+          </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {owner.is_admin && <span className="badge badge-blue">Admin</span>}
+          {!owner.is_admin && owner.properties.length > 0 && !owner.properties.some(p => p.plan_type === 'pro' || p.plan_type === 'owned') && <span className="badge badge-amber" title="Hasn't upgraded to Pro yet">Trial only</span>}
               <button className="btn" style={{ fontSize: 12, padding: '4px 10px' }}
                 onClick={() => { setSelectedOwner(owner); setShowAddProperty(true) }}>
                 + Property
