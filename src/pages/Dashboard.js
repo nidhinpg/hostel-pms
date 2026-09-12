@@ -51,12 +51,29 @@ function getRentStatus(tenant, paidSet, month) {
   return todayDay >= joinDay - 1 ? 'due' : 'upcoming' // show 1 day before due date
 }
 
+// Pending days for a daily-billing tenant -- today minus the last date
+// they are paid through, computed live (no background job). Deliberately
+// returns a day count only, never multiplied into a rupee figure -- daily
+// rates vary per hostel/tenant and are not stored as a fixed number here.
+function getDailyPendingDays(tenant) {
+  if (tenant.billing_type !== 'daily') return 0
+  const paidThrough = tenant.daily_paid_through_date
+    ? new Date(tenant.daily_paid_through_date)
+    : (() => { const d = new Date(tenant.movein_date); d.setDate(d.getDate() - 1); return d })()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  paidThrough.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((today - paidThrough) / (1000 * 60 * 60 * 24))
+  return Math.max(0, diffDays)
+}
+
 export default function Dashboard({ onNavigate, propertyId, propertyName }) {
   const [stats, setStats] = useState(null)
   const [recent, setRecent] = useState([])
   const [dueTenants, setDueTenants] = useState([])
   const [endingSoon, setEndingSoon] = useState([])
   const [upcomingCount, setUpcomingCount] = useState(0)
+const [dailyPendingCount, setDailyPendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -85,11 +102,14 @@ export default function Dashboard({ onNavigate, propertyId, propertyName }) {
     const expense = tx.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0)
 
     // Only tenants with real arrears — checks every month since move-in, not just this one
-    const due = tenants
+    const monthlyTenants = tenants.filter(t => t.billing_type !== 'daily')
+    const dailyTenants = tenants.filter(t => t.billing_type === 'daily')
+    const due = monthlyTenants
       .filter(t => getRentStatus(t, paidSet, month) === 'due')
       .map(t => ({ ...t, dueMonthsCount: getDueMonths(t, paidSet, month).length }))
-    const upcoming = tenants.filter(t => getRentStatus(t, paidSet, month) === 'upcoming')
-    const paidCount = tenants.filter(t => paidSet.has(`${t.id}|${month}`)).length
+    const upcoming = monthlyTenants.filter(t => getRentStatus(t, paidSet, month) === 'upcoming')
+    const paidCount = monthlyTenants.filter(t => paidSet.has(`${t.id}|${month}`)).length
+    const dailyPending = dailyTenants.filter(t => getDailyPendingDays(t) > 0).length
 
     // Find tenants whose stay ends in 3 days or less
     const today = new Date()
@@ -109,6 +129,7 @@ export default function Dashboard({ onNavigate, propertyId, propertyName }) {
     setRecent(recentRes.data || [])
     setDueTenants(due)
     setUpcomingCount(upcoming.length)
+    setDailyPendingCount(dailyPending)
     setLoading(false)
   }, [propertyId])
 
@@ -187,6 +208,12 @@ export default function Dashboard({ onNavigate, propertyId, propertyName }) {
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Outstanding</div>
           </div>
         </div>
+
+        {dailyPendingCount > 0 && (
+          <div style={{ fontSize: 12, color: 'var(--red)', background: 'var(--red-bg)', borderRadius: 6, padding: '6px 10px', marginBottom: 14, fontWeight: 500 }}>
+            Daily tenants pending: {dailyPendingCount}
+          </div>
+        )}
 
         {/* Only show actually due tenants */}
         {dueTenants.length > 0 && (
