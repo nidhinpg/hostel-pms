@@ -79,8 +79,25 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
     return monthsBetweenInclusive(startMonth, month).filter(m => !isPaidForMonth(tenant.id, m))
   }
 
+  // Pending days for a daily-billing tenant -- today minus the last date
+  // they are paid through, computed live (no background job). Deliberately
+  // returns a day count only, never multiplied into a rupee figure -- daily
+  // rates vary per hostel/tenant and are not stored as a fixed number here.
+  const getDailyPendingDays = (tenant) => {
+    if (!tenant || tenant.billing_type !== 'daily') return 0
+    const paidThrough = tenant.daily_paid_through_date
+      ? new Date(tenant.daily_paid_through_date)
+      : (() => { const d = new Date(tenant.movein_date); d.setDate(d.getDate() - 1); return d })()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    paidThrough.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((today - paidThrough) / (1000 * 60 * 60 * 24))
+    return Math.max(0, diffDays)
+  }
+
   const isDue = (tenant) => {
     if (!tenant) return false
+    if (tenant.billing_type === 'daily') return getDailyPendingDays(tenant) > 0
     const dueMonths = getDueMonths(tenant)
     if (dueMonths.length === 0) return false
     const month = currentMonth()
@@ -408,12 +425,16 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
                     <span>{t.movein_date}</span>
                   </div>
                   <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Rent</span>
-                    <span style={{ fontWeight: 600 }}>₹{Number(t.rent).toLocaleString('en-IN')}/mo</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t.billing_type === 'daily' ? 'Billing' : 'Rent'}</span>
+                    <span style={{ fontWeight: 600 }}>{t.billing_type === 'daily' ? 'Daily' : `₹${Number(t.rent).toLocaleString('en-IN')}/mo`}</span>
                   </div>
                   <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Rent status</span>
-                    {paid
+                    {t.billing_type === 'daily'
+                      ? (due
+                        ? <span className="badge badge-red">{getDailyPendingDays(t)} day{getDailyPendingDays(t) > 1 ? 's' : ''} due</span>
+                        : <span className="badge badge-green">Paid up to date</span>)
+                      : paid
                       ? <span className="badge badge-green">Paid ✓</span>
                       : due
                       ? <span className="badge badge-red">Due !</span>
