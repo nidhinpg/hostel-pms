@@ -290,7 +290,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
 
     if (amount) {
       await supabase.from('transactions').insert({
-        date: dailyDate, type: 'income', category: 'Rent',
+        date: dailyDate, type: 'income', category: 'Daily rent',
         description: `${selectedTenant.name} -- ${days} day${days > 1 ? 's' : ''} rent`, amount, property_id: propertyId
       })
     }
@@ -370,7 +370,7 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     if (upfrontAmount > 0) {
       await supabase.from('transactions').insert({
         date: form.movein_date, type: 'income',
-        category: form.billing_type === 'monthly' ? 'Advance' : 'Rent',
+        category: form.billing_type === 'monthly' ? 'Advance' : 'Daily rent',
         description: form.billing_type === 'monthly'
           ? form.name + ' -- advance payment'
           : `${form.name} -- ${paidDays} day${paidDays > 1 ? 's' : ''} rent (check-in)`,
