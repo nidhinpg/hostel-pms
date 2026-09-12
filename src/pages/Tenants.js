@@ -14,6 +14,22 @@ function currentDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
+// Pending days for a daily-billing tenant -- today minus the last date
+// they are paid through, computed live (no background job). Deliberately
+// returns a day count only, never multiplied into a rupee figure -- daily
+// rates vary per hostel/tenant and are not stored as a fixed number here.
+function getDailyPendingDays(tenant) {
+  if (tenant.billing_type !== 'daily') return 0
+  const paidThrough = tenant.daily_paid_through_date
+    ? new Date(tenant.daily_paid_through_date)
+    : (() => { const d = new Date(tenant.movein_date); d.setDate(d.getDate() - 1); return d })()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  paidThrough.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((today - paidThrough) / (1000 * 60 * 60 * 24))
+  return Math.max(0, diffDays)
+}
+
 export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all', canAddTenants = false, canCollectRent = false, canDeleteEntries = false }) {
   const { activeProperty, properties } = useAuth()
   // Pro is bundled owner-wide in Pavio (see `ownerIsProElsewhere` in App.js) —
@@ -32,6 +48,10 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [showAdd, setShowAdd] = useState(false)
   const [showCollect, setShowCollect] = useState(false)
   const [showVacate, setShowVacate] = useState(false)
+  const [showCollectDaily, setShowCollectDaily] = useState(false)
+  const [dailyDays, setDailyDays] = useState('')
+  const [dailyAmount, setDailyAmount] = useState('')
+  const [dailyDate, setDailyDate] = useState(currentDate())
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [collectAmount, setCollectAmount] = useState('')
   const [collectDate, setCollectDate] = useState(currentDate())
@@ -46,7 +66,8 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({
     name: '', phone: '', aadhar: '', bed_id: '',
-    movein_date: currentDate(), rent: '', advance: ''
+    movein_date: currentDate(), rent: '', advance: '',
+    billing_type: 'monthly', daily_paid_days: '', daily_paid_amount: ''
   })
 
   const month = currentMonth()
@@ -115,6 +136,14 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   }
   const isDue = (tenant) => getRentStatus(tenant) === 'due'
 
+  // Unified status across both billing types, used for the filter tabs and
+  // the Due badge count -- daily tenants only ever resolve to 'due'/'paid'
+  // (no 'upcoming' concept for them), and never feed the rupee-based
+  // totalRentDue figure below, since daily rates are not stored here.
+  const getStatus = (tenant) => tenant.billing_type === 'daily'
+    ? (getDailyPendingDays(tenant) > 0 ? 'due' : 'paid')
+    : getRentStatus(tenant)
+
   const getDaysRemaining = (tenantId) => {
     const payment = getPayment(tenantId)
     if (!payment || !payment.stay_end_date) return null
@@ -139,6 +168,14 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     setSelectedTenant(tenant)
     setVacateDate(currentDate())
     setShowVacate(true)
+  }
+
+  const openCollectDaily = (tenant) => {
+    setSelectedTenant(tenant)
+    setDailyDays('')
+    setDailyAmount('')
+    setDailyDate(currentDate())
+    setShowCollectDaily(true)
   }
 
   const handleCollectRent = async () => {
@@ -226,6 +263,64 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     load()
   }
 
+  // Logs one entry in the running daily-payments ledger (never overwrites
+  // a previous entry, unlike the old undo-and-redo workaround for monthly
+  // partial payments) and advances the tenant's paid-through date by the
+  // number of days just paid, stacking on whatever was already covered.
+  const handleCollectDaily = async () => {
+    if (!dailyDays) { showToast('Enter number of days'); return }
+    if (saving) return
+    setSaving(true)
+    const days = parseInt(dailyDays)
+    const amount = dailyAmount ? parseInt(dailyAmount) : null
+
+    const { error } = await supabase.from('daily_payments').insert({
+      tenant_id: selectedTenant.id, property_id: propertyId,
+      days, amount, paid_date: dailyDate
+    })
+    if (error) { showToast('Error: ' + error.message); setSaving(false); return }
+
+    const base = selectedTenant.daily_paid_through_date
+      ? new Date(selectedTenant.daily_paid_through_date)
+      : (() => { const d = new Date(selectedTenant.movein_date); d.setDate(d.getDate() - 1); return d })()
+    base.setDate(base.getDate() + days)
+    const newPaidThrough = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
+
+    await supabase.from('tenants').update({ daily_paid_through_date: newPaidThrough }).eq('id', selectedTenant.id)
+
+    if (amount) {
+      await supabase.from('transactions').insert({
+        date: dailyDate, type: 'income', category: 'Rent',
+        description: `${selectedTenant.name} -- ${days} day${days > 1 ? 's' : ''} rent`, amount, property_id: propertyId
+      })
+    }
+
+    if (selectedTenant.phone) {
+      if (isPro) {
+        supabase.functions.invoke('send-payment-receipt', {
+          body: {
+            tenant_id: selectedTenant.id, property_id: propertyId,
+            amount, paid_date: dailyDate, billing_type: 'daily', days
+          }
+        }).then(({ data, error }) => {
+          if (error) console.log('[receipt] error:', error)
+          else if (data?.success) showToast(`Receipt sent to ${selectedTenant.name.split(' ')[0]} on WhatsApp`)
+          else if (!data?.skipped) console.log('[receipt] failed:', data)
+        }).catch(e => console.log('[receipt] invoke error:', e))
+      } else {
+        setReceiptData({
+          phone: selectedTenant.phone, name: selectedTenant.name, bed: selectedTenant.bed_id,
+          amount, date: dailyDate, isDaily: true, days
+        })
+      }
+    }
+
+    showToast(`Payment logged for ${selectedTenant.name}`)
+    setShowCollectDaily(false)
+    setSaving(false)
+    load()
+  }
+
   const handleUndoPayment = async (tenant) => {
     if (!window.confirm(`Undo ${tenant.name}'s payment for ${month}?`)) return
     await supabase.from('rent_payments').delete().eq('tenant_id', tenant.id).eq('month', month)
@@ -236,28 +331,57 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [saving, setSaving] = useState(false)
 
   const handleAdd = async () => {
-    if (!form.name || !form.bed_id || !form.rent) { showToast('Fill name, bed and rent'); return }
+    if (!form.name || !form.bed_id) { showToast('Fill name and bed'); return }
+    if (form.billing_type === 'monthly' && !form.rent) { showToast('Enter monthly rent'); return }
     if (saving) return
     setSaving(true)
-    const rent = parseInt(form.rent) || 0
+    const rent = form.billing_type === 'monthly' ? (parseInt(form.rent) || 0) : null
     const advance = parseInt(form.advance) || 0
-    const { error } = await supabase.from('tenants').insert({
+    const paidDays = form.billing_type === 'daily' ? (parseInt(form.daily_paid_days) || 0) : 0
+
+    // For a daily tenant paid upfront at check-in, start their paid-through
+    // date at (check-in + days paid - 1) so pending days count correctly
+    // from day one -- otherwise every new daily tenant would show due instantly.
+    let daily_paid_through_date = null
+    if (form.billing_type === 'daily' && paidDays > 0) {
+      const base = new Date(form.movein_date)
+      base.setDate(base.getDate() + paidDays - 1)
+      daily_paid_through_date = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
+    }
+
+    const { data: newTenant, error } = await supabase.from('tenants').insert({
       name: form.name, phone: form.phone, aadhar: form.aadhar,
       bed_id: form.bed_id, movein_date: form.movein_date,
-      rent, advance, status: 'active', property_id: propertyId
-    })
+      rent, advance, status: 'active', property_id: propertyId,
+      billing_type: form.billing_type, daily_paid_through_date
+    }).select().single()
     if (error) { showToast('Error: ' + error.message); setSaving(false); return }
     await supabase.from('beds').update({ status: 'occupied' }).eq('id', form.bed_id).eq('property_id', propertyId)
-    if (advance > 0) {
-      await supabase.from('transactions').insert({
-        date: form.movein_date, type: 'income', category: 'Advance',
-        description: form.name + ' — advance payment', amount: advance, property_id: propertyId
+
+    if (form.billing_type === 'daily' && paidDays > 0) {
+      await supabase.from('daily_payments').insert({
+        tenant_id: newTenant.id, property_id: propertyId,
+        days: paidDays, amount: form.daily_paid_amount ? parseInt(form.daily_paid_amount) : null,
+        paid_date: form.movein_date
       })
     }
+
+    const upfrontAmount = form.billing_type === 'monthly' ? advance : (parseInt(form.daily_paid_amount) || 0)
+    if (upfrontAmount > 0) {
+      await supabase.from('transactions').insert({
+        date: form.movein_date, type: 'income',
+        category: form.billing_type === 'monthly' ? 'Advance' : 'Rent',
+        description: form.billing_type === 'monthly'
+          ? form.name + ' -- advance payment'
+          : `${form.name} -- ${paidDays} day${paidDays > 1 ? 's' : ''} rent (check-in)`,
+        amount: upfrontAmount, property_id: propertyId
+      })
+    }
+
     showToast('Tenant added!')
     setShowAdd(false)
     setSaving(false)
-    setForm({ name: '', phone: '', aadhar: '', bed_id: '', movein_date: currentDate(), rent: '', advance: '' })
+    setForm({ name: '', phone: '', aadhar: '', bed_id: '', movein_date: currentDate(), rent: '', advance: '', billing_type: 'monthly', daily_paid_days: '', daily_paid_amount: '' })
     load()
   }
 
@@ -271,10 +395,26 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     return `https://wa.me/91${tenant.phone}?text=${encodeURIComponent(msg)}`
   }
 
+  // Due-reminder message for a daily tenant -- day count only, no amount,
+  // since the app does not store a fixed daily rate (see getDailyPendingDays).
+  const getDailyWhatsAppMsg = (tenant) => {
+    const hostelName = activeProperty?.name || 'Hosteloops'
+    const pending = getDailyPendingDays(tenant)
+    const msg = `Hi ${tenant.name.split(' ')[0]}, you have ${pending} day${pending > 1 ? 's' : ''} of stay pending payment at ${hostelName}. Please settle whenever convenient. Thank you!`
+    return `https://wa.me/91${tenant.phone}?text=${encodeURIComponent(msg)}`
+  }
+
   const buildReceiptUrl = (r) => {
     let msg = ''
     const hostelName = activeProperty?.name || 'Hosteloops'
-    if (r.isPartial) {msg = `Hi ${r.name.split(' ')[0]},
+    if (r.isDaily) {msg = `Hi ${r.name.split(' ')[0]},
+Receipt - ${hostelName}
+Bed: ${r.bed}
+Amount paid: ₹${r.amount ? Number(r.amount).toLocaleString('en-IN') : '0'}
+Days: ${r.days} day${r.days > 1 ? 's' : ''}
+Date: ${r.date}
+Thank you! — ${hostelName}`
+    } else if (r.isPartial) {msg = `Hi ${r.name.split(' ')[0]},
 Receipt - ${hostelName}
 Bed: ${r.bed}
 Amount paid: ₹${Number(r.amount).toLocaleString('en-IN')}
@@ -305,6 +445,15 @@ Thank you! — ${hostelName}`
   const getActiveRows = () => {
     const headers = ['Name', 'Phone', 'Aadhar', 'Bed', 'Move-in Date', 'Monthly Rent', 'Advance', 'Payment Status', 'Amount Paid', 'Months Overdue', 'Total Due (₹)']
     const rows = tenants.map(t => {
+      if (t.billing_type === 'daily') {
+        const pending = getDailyPendingDays(t)
+        return [
+          t.name, t.phone || '', t.aadhar || '', t.bed_id || '',
+          t.movein_date || '', 'Daily', t.advance || '',
+          pending > 0 ? 'Due' : 'Paid', '',
+          pending || '', pending ? `${pending} days` : ''
+        ]
+      }
       const payment = getPayment(t.id)
       const status = getRentStatus(t)
       const dueMonths = getDueMonths(t)
@@ -444,14 +593,16 @@ Thank you! — ${hostelName}`
   if (loading) return <div className="loading">Loading tenants...</div>
 
   const paidThisMonth = tenants.filter(t => isPaid(t.id)).length
-  const unpaidCount = tenants.filter(t => getRentStatus(t) === 'due').length
-  const upcomingCount = tenants.filter(t => getRentStatus(t) === 'upcoming').length
-  const totalRentDue = tenants.filter(t => getRentStatus(t) === 'due').reduce((a, t) => a + getDueMonths(t).length * t.rent, 0)
+  const unpaidCount = tenants.filter(t => getStatus(t) === 'due').length
+  const upcomingCount = tenants.filter(t => t.billing_type !== 'daily' && getRentStatus(t) === 'upcoming').length
+  // Daily tenants never feed this rupee figure -- their rate is not stored,
+  // so their pending days are shown as a plain count elsewhere, never ₹.
+  const totalRentDue = tenants.filter(t => t.billing_type !== 'daily' && getRentStatus(t) === 'due').reduce((a, t) => a + getDueMonths(t).length * t.rent, 0)
 
   const filteredTenants = tenants.filter(t => {
-    const matchesStatus = filterStatus === 'paid' ? getRentStatus(t) === 'paid'
-      : filterStatus === 'due' ? getRentStatus(t) === 'due'
-      : filterStatus === 'upcoming' ? getRentStatus(t) === 'upcoming'
+    const matchesStatus = filterStatus === 'paid' ? getStatus(t) === 'paid'
+      : filterStatus === 'due' ? getStatus(t) === 'due'
+      : filterStatus === 'upcoming' ? getStatus(t) === 'upcoming'
       : true
     const q = search.toLowerCase()
     const matchesSearch = !q || t.name.toLowerCase().includes(q) || (t.bed_id || '').toLowerCase().includes(q) || (t.phone || '').includes(q)
@@ -539,7 +690,7 @@ Thank you! — ${hostelName}`
                   <thead><tr><th>Name</th><th>Bed</th><th>Rent</th><th>{month}</th><th>Actions</th></tr></thead>
                   <tbody>
                     {filteredTenants.map(t => {
-                      const status = getRentStatus(t)
+                      const status = getStatus(t)
                       const payment = getPayment(t.id)
                       const daysLeft = getDaysRemaining(t.id)
                       const joinDay = t.movein_date ? parseInt(t.movein_date.split('-')[2]) : 1
@@ -551,9 +702,18 @@ Thank you! — ${hostelName}`
   <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t.phone}</div>
   <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Check-in: {t.movein_date}</div>
 </td>                          <td><span className="badge badge-blue">{t.bed_id}</span></td>
-                          <td style={{ fontWeight: 600 }}>{fmt(t.rent)}</td>
+                          <td style={{ fontWeight: 600 }}>{t.billing_type === 'daily' ? <span className="badge badge-blue" style={{ fontWeight: 400 }}>Daily</span> : fmt(t.rent)}</td>
                           <td>
-                            {status === 'paid' ? (
+                            {t.billing_type === 'daily' ? (
+                              (() => {
+                                const pendingDays = getDailyPendingDays(t)
+                                return pendingDays > 0 ? (
+                                  <span className="badge badge-red">{pendingDays} day{pendingDays > 1 ? 's' : ''} due</span>
+                                ) : (
+                                  <span className="badge badge-green">Paid up to date</span>
+                                )
+                              })()
+                            ) : status === 'paid' ? (
                               <div>
                                 <span className="badge badge-green">Paid</span>
                                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
@@ -586,7 +746,12 @@ Thank you! — ${hostelName}`
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {status === 'paid' ? (
+                              {t.billing_type === 'daily' ? (
+                                (!isStaff || canCollectRent) && (
+                                  <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }}
+                                    onClick={() => openCollectDaily(t)}>Collect payment</button>
+                                )
+                              ) : status === 'paid' ? (
                                 (!isStaff || canDeleteEntries) && (
                                   <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-tertiary)' }}
                                     onClick={() => handleUndoPayment(t)}>Undo</button>
@@ -719,6 +884,28 @@ Thank you! — ${hostelName}`
           </div>
         </Modal>
       )}
+      {/* COLLECT DAILY PAYMENT MODAL */}
+      {showCollectDaily && selectedTenant && (
+        <Modal title={`Collect payment — ${selectedTenant.name}`} onClose={() => setShowCollectDaily(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setShowCollectDaily(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleCollectDaily} disabled={saving}>{saving ? 'Saving...' : 'Confirm payment'}</button>
+            </>
+          }>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="form-grid">
+              <div className="form-group"><label>How many days is this for? *</label><input type="number" placeholder="1" value={dailyDays} onChange={e => setDailyDays(e.target.value)} /></div>
+              <div className="form-group"><label>How much (₹)?</label><input type="number" placeholder="200" value={dailyAmount} onChange={e => setDailyAmount(e.target.value)} /></div>
+            </div>
+            <div className="form-group"><label>Payment date</label><input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)} /></div>
+            <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 6 }}>
+              Marks {dailyDays || '…'} day{dailyDays == 1 ? '' : 's'} as paid and auto-adds to Income.
+            </div>
+          </div>
+        </Modal>
+      )}
+
 
       {/* VACATE MODAL */}
       {showVacate && selectedTenant && (
@@ -769,13 +956,35 @@ Thank you! — ${hostelName}`
                 </select>
               </div>
             </div>
-            <div className="form-grid">
-              <div className="form-group"><label>Move-in date</label><input type="date" value={form.movein_date} onChange={f('movein_date')} /></div>
-              <div className="form-group"><label>Monthly rent (₹) *</label><input type="number" placeholder="5000" value={form.rent} onChange={f('rent')} /></div>
-            </div>
             <div className="form-grid single">
-              <div className="form-group"><label>Advance paid (₹)</label><input type="number" placeholder="0" value={form.advance} onChange={f('advance')} /></div>
+              <div className="form-group"><label>Billing type</label>
+                <select value={form.billing_type} onChange={f('billing_type')}>
+                  <option value="monthly">Monthly</option>
+                  <option value="daily">Daily</option>
+                </select>
+              </div>
             </div>
+            {form.billing_type === 'monthly' ? (
+              <>
+                <div className="form-grid">
+                  <div className="form-group"><label>Move-in date</label><input type="date" value={form.movein_date} onChange={f('movein_date')} /></div>
+                  <div className="form-group"><label>Monthly rent (₹) *</label><input type="number" placeholder="5000" value={form.rent} onChange={f('rent')} /></div>
+                </div>
+                <div className="form-grid single">
+                  <div className="form-group"><label>Advance paid (₹)</label><input type="number" placeholder="0" value={form.advance} onChange={f('advance')} /></div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-grid single">
+                  <div className="form-group"><label>Check-in date</label><input type="date" value={form.movein_date} onChange={f('movein_date')} /></div>
+                </div>
+                <div className="form-grid">
+                  <div className="form-group"><label>Days already paid (optional)</label><input type="number" placeholder="0" value={form.daily_paid_days} onChange={f('daily_paid_days')} /></div>
+                  <div className="form-group"><label>Amount collected (optional, ₹)</label><input type="number" placeholder="0" value={form.daily_paid_amount} onChange={f('daily_paid_amount')} /></div>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}
@@ -793,7 +1002,9 @@ Thank you! — ${hostelName}`
             Send receipt to {receiptData.name.split(' ')[0]}?
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10, lineHeight: 1.6 }}>
-            {receiptData.isPartial
+            {receiptData.isDaily
+              ? `${receiptData.amount ? '₹' + Number(receiptData.amount).toLocaleString('en-IN') + ' · ' : ''}${receiptData.days} day${receiptData.days > 1 ? 's' : ''}`
+              : receiptData.isPartial
               ? `₹${Number(receiptData.amount).toLocaleString('en-IN')} · ${receiptData.days} days · till ${receiptData.till}`
               : `₹${Number(receiptData.amount).toLocaleString('en-IN')} · ${receiptData.month}`
             }
