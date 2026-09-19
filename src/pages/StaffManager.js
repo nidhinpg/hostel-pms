@@ -59,8 +59,13 @@ export default function StaffManager({ propertyId, onUpgradeClick }) {
     setLoading(true)
     let query = supabase.from('profiles').select('*').eq('role', 'staff')
 
-    // Admin sees all staff; owner sees only their property's staff
-    if (!isAdmin && propertyId) {
+    // Always scope to the currently selected property, even for admin
+    // accounts. This page is reached from an owner's own property nav (not
+    // the Admin Panel), so an admin viewing their own hostel's Staff
+    // management should see only that property's staff, not every staff
+    // account on the platform -- a platform-wide admin view belongs in the
+    // Admin Panel, not here.
+    if (propertyId) {
       query = query.eq('property_id', propertyId)
     }
 
