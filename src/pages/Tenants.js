@@ -57,6 +57,8 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
   const [collectDate, setCollectDate] = useState(currentDate())
   const [collectMonth, setCollectMonth] = useState(currentMonth())
   const [vacateDate, setVacateDate] = useState(currentDate())
+  const [showEdit, setShowEdit] = useState(false)
+  const [editForm, setEditForm] = useState({ name: '', phone: '', bed_id: '', rent: '' })
   const [daysPaid, setDaysPaid] = useState('')
   const [isPartialPay, setIsPartialPay] = useState(false)
   const [receiptData, setReceiptData] = useState(null)
@@ -170,6 +172,12 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     setShowVacate(true)
   }
 
+  const openEdit = (tenant) => {
+    setSelectedTenant(tenant)
+    setEditForm({ name: tenant.name, phone: tenant.phone || '', bed_id: tenant.bed_id, rent: tenant.rent || '' })
+    setShowEdit(true)
+  }
+
   const openCollectDaily = (tenant) => {
     setSelectedTenant(tenant)
     setDailyDays('')
@@ -260,6 +268,39 @@ export default function Tenants({ propertyId, isStaff = false, initialFilter = '
     await supabase.from('beds').update({ status: 'vacant' }).eq('id', selectedTenant.bed_id).eq('property_id', propertyId)
     showToast(`${selectedTenant.name} vacated successfully`)
     setShowVacate(false)
+    load()
+  }
+
+  const handleEditTenant = async () => {
+    if (!editForm.name || !editForm.bed_id) { showToast('Fill name and bed'); return }
+    if (selectedTenant.billing_type === 'monthly' && !editForm.rent) { showToast('Enter monthly rent'); return }
+    if (saving) return
+    setSaving(true)
+
+    const bedChanged = editForm.bed_id !== selectedTenant.bed_id
+    if (bedChanged) {
+      // Make sure the new bed isn't already taken by someone else before
+      // moving this tenant into it.
+      const { data: targetBed } = await supabase.from('beds').select('status').eq('id', editForm.bed_id).eq('property_id', propertyId).single()
+      if (targetBed && targetBed.status === 'occupied') {
+        showToast('That bed is already occupied'); setSaving(false); return
+      }
+    }
+
+    const updates = { name: editForm.name, phone: editForm.phone, bed_id: editForm.bed_id }
+    if (selectedTenant.billing_type === 'monthly') updates.rent = parseInt(editForm.rent) || 0
+
+    const { error } = await supabase.from('tenants').update(updates).eq('id', selectedTenant.id)
+    if (error) { showToast('Error: ' + error.message); setSaving(false); return }
+
+    if (bedChanged) {
+      await supabase.from('beds').update({ status: 'vacant' }).eq('id', selectedTenant.bed_id).eq('property_id', propertyId)
+      await supabase.from('beds').update({ status: 'occupied' }).eq('id', editForm.bed_id).eq('property_id', propertyId)
+    }
+
+    showToast('Tenant details updated')
+    setShowEdit(false)
+    setSaving(false)
     load()
   }
 
@@ -776,6 +817,10 @@ Thank you! — ${hostelName}`
                                 )
                               )}
                               {(!isStaff || canAddTenants) && (
+                                <button className="btn" style={{ fontSize: 11, padding: '4px 10px' }}
+                                  onClick={() => openEdit(t)}>Edit</button>
+                              )}
+                              {(!isStaff || canAddTenants) && (
                                 <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 10px' }}
                                   onClick={() => openVacate(t)}>Vacate</button>
                               )}
@@ -985,6 +1030,39 @@ Thank you! — ${hostelName}`
                 </div>
               </>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {/* EDIT TENANT MODAL */}
+      {showEdit && selectedTenant && (
+        <Modal title={`Edit tenant — ${selectedTenant.name}`} onClose={() => setShowEdit(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setShowEdit(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleEditTenant} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</button>
+            </>
+          }>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="form-grid">
+              <div className="form-group"><label>Full name *</label><input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} /></div>
+              <div className="form-group"><label>Phone</label><input value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} /></div>
+            </div>
+            <div className="form-grid">
+              <div className="form-group"><label>Bed *</label>
+                <select value={editForm.bed_id} onChange={e => setEditForm(p => ({ ...p, bed_id: e.target.value }))}>
+                  {[...new Set([selectedTenant.bed_id, ...vacantBeds.map(b => b.id)])].filter(Boolean).map(id => (
+                    <option key={id} value={id}>{id}</option>
+                  ))}
+                </select>
+              </div>
+              {selectedTenant.billing_type === 'monthly' && (
+                <div className="form-group"><label>Monthly rent (₹) *</label><input type="number" value={editForm.rent} onChange={e => setEditForm(p => ({ ...p, rent: e.target.value }))} /></div>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg)', padding: '8px 12px', borderRadius: 6 }}>
+              Changing the bed frees up {selectedTenant.bed_id} and marks the new one occupied.
+            </div>
           </div>
         </Modal>
       )}
