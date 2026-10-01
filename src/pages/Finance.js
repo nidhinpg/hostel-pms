@@ -269,7 +269,7 @@ export default function Finance({ propertyId, isStaff = false, canDelete = false
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="form-group">
               <label>Type</label>
-              <select value={filterType} onChange={e => setFilterType(e.target.value)}
+              <select value={filterType} onChange={e => { setFilterType(e.target.value); setFilterCat('All') }}
                 style={{ fontSize: 13, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)', width: '100%' }}>
                 <option value="all">All types</option>
                 <option value="income">Income only</option>
@@ -280,7 +280,7 @@ export default function Finance({ propertyId, isStaff = false, canDelete = false
               <label>Category</label>
               <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
                 style={{ fontSize: 13, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)', width: '100%' }}>
-                {ALL_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                {(filterType === 'income' ? ['All', ...INCOME_CATEGORIES] : filterType === 'expense' ? ['All', ...EXPENSE_CATEGORIES] : ALL_CATEGORIES).map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
             <div className="form-group">
