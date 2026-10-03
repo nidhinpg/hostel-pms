@@ -39,6 +39,17 @@ export default function Landing() {
 
             <div className="hero-ctas">
               <a href="/signup" className="btn btn-brand btn-lg">Get started free →</a>
+              <a href="https://play.google.com/store/apps/details?id=com.pavio.app" target="_blank" rel="noreferrer" className="play-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135 40" width="135" height="40">
+                  <rect width="135" height="40" rx="6" fill="#000"/>
+                  <text x="44" y="13" fill="#fff" fontFamily="'DM Sans',sans-serif" fontSize="8" letterSpacing="0.3">GET IT ON</text>
+                  <text x="44" y="28" fill="#fff" fontFamily="'DM Sans',sans-serif" fontSize="15" fontWeight="600" letterSpacing="-0.3">Google Play</text>
+                  <path d="M12 8 L12 32 L26 20 Z" fill="#4CAF50"/>
+                  <path d="M12 8 L26 20 L30 16 L16 8 Z" fill="#81C784"/>
+                  <path d="M12 32 L26 20 L30 24 L16 32 Z" fill="#F44336"/>
+                  <path d="M26 20 L30 16 L34 20 L30 24 Z" fill="#FFCA28"/>
+                </svg>
+              </a>
             </div>
             <div className="hero-note">No card required &middot; 15-day trial &middot; set up your first property in under 10 minutes</div>
           </div>
@@ -229,6 +240,17 @@ export default function Landing() {
             </a>
             <a href="https://wa.me/919778776405" target="_blank" rel="noreferrer" style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
               💬 WhatsApp
+            </a>
+            <a href="https://play.google.com/store/apps/details?id=com.pavio.app" target="_blank" rel="noreferrer" className="play-badge play-badge-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 32" width="110" height="32">
+                <rect width="110" height="32" rx="5" fill="#1a1916"/>
+                <text x="36" y="11" fill="#fff" fontFamily="'DM Sans',sans-serif" fontSize="6.5" letterSpacing="0.3">GET IT ON</text>
+                <text x="36" y="23" fill="#fff" fontFamily="'DM Sans',sans-serif" fontSize="12" fontWeight="600" letterSpacing="-0.3">Google Play</text>
+                <path d="M10 7 L10 25 L21 16 Z" fill="#4CAF50"/>
+                <path d="M10 7 L21 16 L24 13 L13 7 Z" fill="#81C784"/>
+                <path d="M10 25 L21 16 L24 19 L13 25 Z" fill="#F44336"/>
+                <path d="M21 16 L24 13 L27 16 L24 19 Z" fill="#FFCA28"/>
+              </svg>
             </a>
             <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>&copy; 2026 Pavio</span>
           </div>
