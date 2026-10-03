@@ -172,3 +172,15 @@
   .landing .mock-summary { flex-wrap: wrap; }
   .landing .dotted-bg::before { display: none; }
 }
+
+
+/* Play Store badge */
+.landing .play-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.landing .play-badge:hover { opacity: 0.85; }
+.landing .play-badge-sm { border-radius: 5px; }
