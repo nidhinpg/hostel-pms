@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
@@ -7,7 +7,8 @@ import BedMap from './pages/BedMap'
 import Tenants from './pages/Tenants'
 import Finance from './pages/Finance'
 import Reports from './pages/Reports'
-import MobileDrawer, { BrandMark } from './components/MobileDrawer'
+import MobileTabs from './components/MobileTabs'
+import { BrandMark } from './components/MobileDrawer'
 import AdminPanel from './pages/AdminPanel'
 import StaffManager from './pages/StaffManager'
 import ResetPassword from './pages/ResetPassword'
@@ -465,7 +466,9 @@ function AppContent() {
   const [page, setPage] = useState('dashboard')
   const [tenantFilter, setTenantFilter] = useState('all')
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
-  const [showDrawer, setShowDrawer] = useState(false)
+  const prevPageRef = useRef(page)
+  const swipeRef = useRef(null)
+  useEffect(() => { prevPageRef.current = page }, [page])
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
@@ -626,13 +629,41 @@ function AppContent() {
   }
   const badge = planBadge()
 
+  const goPage = (id) => { setPage(id); setTenantFilter('all'); setShowPropertyMenu(false); setShowUserMenu(false) }
+  const swipePage = (dir) => {
+    const i = navPages.findIndex(p => p.id === page)
+    if (i < 0) return
+    const next = navPages[i + dir]
+    if (next) goPage(next.id)
+  }
+  const slideClass = navPages.findIndex(p => p.id === page) < navPages.findIndex(p => p.id === prevPageRef.current) ? 'slide-back' : 'slide-fwd'
+  const onTouchStartMain = (e) => {
+    if (window.innerWidth > 640) { swipeRef.current = null; return }
+    let el = e.target
+    while (el && el !== e.currentTarget) {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) { swipeRef.current = null; return }
+      if (el.scrollWidth > el.clientWidth + 2 && ['auto', 'scroll'].includes(getComputedStyle(el).overflowX)) { swipeRef.current = null; return }
+      el = el.parentElement
+    }
+    const t = e.touches[0]
+    swipeRef.current = { x: t.clientX, y: t.clientY }
+  }
+  const onTouchEndMain = (e) => {
+    const s = swipeRef.current
+    swipeRef.current = null
+    if (!s) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - s.x
+    const dy = t.clientY - s.y
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) swipePage(dx < 0 ? 1 : -1)
+  }
+
   return (
     <div className="app">
       <header className="header">
         <div className="header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className="m-menu-btn" aria-label="Open menu" onClick={() => { setShowDrawer(true); setShowPropertyMenu(false); setShowUserMenu(false) }}>☰</button>
-              <div className="logo">
+            <div className="logo">
               <span className="logo-icon"><BrandMark size={24} /></span>
               <span className="logo-text">Pavio</span>
             </div>
@@ -800,23 +831,10 @@ function AppContent() {
           </div>
         </div>
       </header>
-      <MobileDrawer
-        open={showDrawer}
-        onClose={() => setShowDrawer(false)}
-        navPages={navPages}
-        page={page}
-        onNavigate={(id) => { setPage(id); setTenantFilter('all'); setShowPropertyMenu(false); setShowUserMenu(false); setShowDrawer(false) }}
-        properties={properties}
-        activeProperty={activeProperty}
-        canSwitch={isOwner && properties.length > 1}
-        onSelectProperty={(p) => { selectProperty(p); setPage('dashboard'); setShowDrawer(false) }}
-        planLabel={badge ? badge.label.replace(/^[^A-Za-z]+/, '') + ' plan' : null}
-        profile={profile}
-        user={user}
-        onSignOut={() => { setShowDrawer(false); signOut() }}
-      />
+      <MobileTabs navPages={navPages} page={page} onNavigate={goPage} onSwipe={swipePage} />
 
-      <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }}>
+      <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }} onTouchStart={onTouchStartMain} onTouchEnd={onTouchEndMain}>
+        <div key={page} className={'page-anim ' + slideClass}>
         {page === 'admin' && isAdmin && <AdminPanel />}
         {page === 'staff' && isOwner && <StaffManager propertyId={activeProperty?.id} onUpgradeClick={() => setShowUpgradeModal(true)} />}
         {!['admin', 'staff'].includes(page) && (
@@ -830,6 +848,7 @@ function AppContent() {
                 {page === 'reports' && (!isStaff || permissions?.view_reports) && <Reports propertyId={activeProperty.id} />}
               </>
         )}
+      </div>
       </main>
 
       {showSettings && activeProperty && (
