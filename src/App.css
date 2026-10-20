@@ -238,10 +238,10 @@ tr:hover td { background: var(--bg); }
 /* ---- Phone tab bar (icon + label, sliding underline) and sideways page transitions ---- */
 .m-tabs { display: none; }
 @keyframes tabPop { 0% { transform: scale(0.7); } 100% { transform: scale(1); } }
-@keyframes pageInR { from { transform: translateX(100%); } to { transform: none; } }
-@keyframes pageOutL { from { transform: none; } to { transform: translateX(-100%); } }
-@keyframes pageOutR { from { transform: none; } to { transform: translateX(100%); } }
-@keyframes pageInL { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes pageInR { from { transform: translate3d(100%,0,0); } to { transform: translate3d(0,0,0); } }
+@keyframes pageOutL { from { transform: translate3d(0,0,0); opacity: 1; } to { transform: translate3d(-35%,0,0); opacity: 0; } }
+@keyframes pageOutR { from { transform: translate3d(0,0,0); opacity: 1; } to { transform: translate3d(35%,0,0); opacity: 0; } }
+@keyframes pageInL { from { transform: translate3d(-100%,0,0); } to { transform: translate3d(0,0,0); } }
 @media (max-width: 640px) {
   .m-tabs { display: block; position: sticky; top: 56px; z-index: 49; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
   .m-tabs::-webkit-scrollbar { display: none; }
@@ -251,12 +251,11 @@ tr:hover td { background: var(--bg); }
   .m-tab.act svg { animation: tabPop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
   .m-tab-ind { position: absolute; bottom: 0; left: 0; height: 3px; background: #D85A30; border-radius: 3px 3px 0 0; transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), width 0.32s; }
   .main { overflow-x: clip; position: relative; }
-  .page-exit { position: absolute; pointer-events: none; will-change: transform; }
-  .page-exit.exit-fwd { animation: pageOutL 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-  .page-exit.exit-back { animation: pageOutR 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-  .page-anim { will-change: transform; }
-  .page-anim.slide-fwd { animation: pageInR 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
-  .page-anim.slide-back { animation: pageInL 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .page-exit { position: absolute; pointer-events: none; backface-visibility: hidden; }
+  .page-exit.exit-fwd { animation: pageOutL 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+  .page-exit.exit-back { animation: pageOutR 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+  .page-anim.slide-fwd { animation: pageInR 0.38s cubic-bezier(0.22, 1, 0.36, 1); }
+  .page-anim.slide-back { animation: pageInL 0.38s cubic-bezier(0.22, 1, 0.36, 1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .page-anim, .page-exit, .m-tab.act svg { animation: none !important; }
