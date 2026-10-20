@@ -233,3 +233,26 @@ tr:hover td { background: var(--bg); }
 @media (min-width: 641px) {
   .m-drawer-overlay { display: none; }
 }
+
+
+/* ---- Phone tab bar (icon + label, sliding underline) and sideways page transitions ---- */
+.m-tabs { display: none; }
+@keyframes tabPop { 0% { transform: scale(0.7); } 100% { transform: scale(1); } }
+@keyframes pageInR { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes pageInL { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) {
+  .m-tabs { display: block; position: sticky; top: 56px; z-index: 49; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .m-tabs::-webkit-scrollbar { display: none; }
+  .m-tabs-inner { position: relative; display: flex; min-width: 100%; }
+  .m-tab { flex: 1 0 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 9px; background: none; border: none; font-family: inherit; font-size: 11px; color: var(--text-secondary); cursor: pointer; transition: color 0.25s; }
+  .m-tab.act { color: #D85A30; font-weight: 500; }
+  .m-tab.act svg { animation: tabPop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
+  .m-tab-ind { position: absolute; bottom: 0; left: 0; height: 3px; background: #D85A30; border-radius: 3px 3px 0 0; transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), width 0.32s; }
+  .main { overflow-x: clip; }
+  .page-anim.slide-fwd { animation: pageInR 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .page-anim.slide-back { animation: pageInL 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-anim, .m-tab.act svg { animation: none !important; }
+  .m-tab-ind { transition: none; }
+}
