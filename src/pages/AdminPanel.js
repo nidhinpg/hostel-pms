@@ -177,13 +177,13 @@ export default function AdminPanel() {
         <div className="metric">
           <div className="metric-label">Active subscriptions</div>
           <div className="metric-value" style={{ color: 'var(--green)' }}>
-            {owners.reduce((a, o) => a + o.properties.filter(p => p.plan_type !== 'trial' && p.subscription_status === 'active').length, 0)}
+            {owners.filter(o => o.properties.some(p => p.plan_type !== 'trial' && p.subscription_status === 'active')).length}
           </div>
         </div>
         <div className="metric">
           <div className="metric-label">Trial accounts</div>
           <div className="metric-value" style={{ color: 'var(--amber)' }}>
-            {owners.reduce((a, o) => a + o.properties.filter(p => p.plan_type === 'trial').length, 0)}
+            {owners.filter(o => o.properties.some(p => p.plan_type === 'trial') && !o.properties.some(p => p.plan_type !== 'trial' && p.subscription_status === 'active')).length}
           </div>
         </div>
       </div>
