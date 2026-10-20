@@ -246,10 +246,11 @@ tr:hover td { background: var(--bg); }
   .m-tabs { display: block; position: sticky; top: 56px; z-index: 49; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
   .m-tabs::-webkit-scrollbar { display: none; }
   .m-tabs-inner { position: relative; display: flex; min-width: 100%; }
-  .m-tab { flex: 1 0 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 9px; background: none; border: none; font-family: inherit; font-size: 11px; color: var(--text-secondary); cursor: pointer; transition: color 0.25s; }
-  .m-tab.act { color: #D85A30; font-weight: 500; }
-  .m-tab.act svg { animation: tabPop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
-  .m-tab-ind { position: absolute; bottom: 0; left: 0; height: 3px; background: #D85A30; border-radius: 3px 3px 0 0; transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), width 0.32s; }
+  .m-tabs-inner { padding: 8px 12px; gap: 4px; min-width: max-content; }
+  .m-tab { position: relative; z-index: 1; flex: 0 0 auto; display: flex; align-items: center; padding: 9px 16px; background: none; border: none; border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; color: var(--text-secondary); cursor: pointer; transition: color 0.25s; }
+  .m-tab svg { display: none; }
+  .m-tab.act { color: #fff; }
+  .m-tab-ind { position: absolute; z-index: 0; top: 8px; bottom: 8px; left: 0; height: auto; background: #1a1915; border-radius: 999px; transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), width 0.32s; }
   .main { overflow-x: clip; position: relative; }
   .page-exit { position: absolute; pointer-events: none; backface-visibility: hidden; }
   .page-exit.exit-fwd { animation: pageOutL 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards; }

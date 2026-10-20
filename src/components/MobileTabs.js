@@ -52,7 +52,7 @@ export default function MobileTabs({ navPages, page, onNavigate, onSwipe }) {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               {(ICON[p.id] || []).map((d, i) => <path key={i} d={d} />)}
             </svg>
-            <span>{SHORT[p.id] || p.label}</span>
+            <span>{p.label || SHORT[p.id]}</span>
           </button>
         ))}
         <span className="m-tab-ind" style={{ transform: 'translateX(' + ind.left + 'px)', width: ind.width }} />
