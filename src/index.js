@@ -6,16 +6,15 @@ const root = ReactDOM.createRoot(document.getElementById('root'))
 root.render(<React.StrictMode><App /></React.StrictMode>)
 
 
-// Mobile: label each table cell with its column header so CSS can show tables as cards on small screens
+// Mobile: label table cells with their column header so CSS can target columns on small screens
 function labelTables() {
   document.querySelectorAll('table').forEach(table => {
     const heads = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim())
-    if (heads.length < 4) return
-    table.classList.add('rt-cards')
-    table.querySelectorAll('tbody tr').forEach(tr => {
-      Array.from(tr.children).forEach((td, i) => {
-        const label = td.colSpan > 1 ? '' : (heads[i] || '')
-        if (td.getAttribute('data-label') !== label) td.setAttribute('data-label', label)
+    if (!heads.length) return
+    table.querySelectorAll('tr').forEach(tr => {
+      Array.from(tr.children).forEach((cell, i) => {
+        const label = cell.colSpan > 1 ? '' : (heads[i] || '')
+        if (cell.getAttribute('data-label') !== label) cell.setAttribute('data-label', label)
       })
     })
   })
