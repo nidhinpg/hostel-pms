@@ -156,9 +156,9 @@ const [dailyPendingCount, setDailyPendingCount] = useState(0)
 
       <div className="metrics">
         <div className="metric">
-          <div className="metric-label">Vacant beds</div>
-          <div className="metric-value" style={{ color: 'var(--green)' }}>{total - occupied}</div>
-          <div className="metric-sub">of {total} total beds</div>
+          <div className="metric-label">Occupancy</div>
+          <div className="metric-value">{occupied}/{total}</div>
+          <div className="metric-sub">{total ? Math.round((occupied / total) * 100) : 0}% occupied</div>
         </div>
         <div className="metric">
           <div className="metric-label">Month income</div>
