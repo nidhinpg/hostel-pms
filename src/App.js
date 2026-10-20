@@ -7,6 +7,7 @@ import BedMap from './pages/BedMap'
 import Tenants from './pages/Tenants'
 import Finance from './pages/Finance'
 import Reports from './pages/Reports'
+import MobileDrawer, { BrandMark } from './components/MobileDrawer'
 import AdminPanel from './pages/AdminPanel'
 import StaffManager from './pages/StaffManager'
 import ResetPassword from './pages/ResetPassword'
@@ -464,6 +465,7 @@ function AppContent() {
   const [page, setPage] = useState('dashboard')
   const [tenantFilter, setTenantFilter] = useState('all')
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
+  const [showDrawer, setShowDrawer] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
@@ -629,8 +631,9 @@ function AppContent() {
       <header className="header">
         <div className="header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div className="logo">
-              <span className="logo-icon">🏠</span>
+            <button className="m-menu-btn" aria-label="Open menu" onClick={() => { setShowDrawer(true); setShowPropertyMenu(false); setShowUserMenu(false) }}>☰</button>
+              <div className="logo">
+              <span className="logo-icon"><BrandMark url={profile?.logo_url} size={24} /></span>
               <span className="logo-text">Pavio</span>
             </div>
 
@@ -797,6 +800,23 @@ function AppContent() {
           </div>
         </div>
       </header>
+      <MobileDrawer
+        open={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        navPages={navPages}
+        page={page}
+        onNavigate={(id) => { setPage(id); setTenantFilter('all'); setShowPropertyMenu(false); setShowUserMenu(false); setShowDrawer(false) }}
+        properties={properties}
+        activeProperty={activeProperty}
+        canSwitch={isOwner && properties.length > 1}
+        onSelectProperty={(p) => { selectProperty(p); setPage('dashboard'); setShowDrawer(false) }}
+        planLabel={badge ? badge.label.replace(/^[^A-Za-z]+/, '') + ' plan' : null}
+        profile={profile}
+        user={user}
+        isOwner={isOwner}
+        onSignOut={() => { setShowDrawer(false); signOut() }}
+        onLogoChanged={refreshProperties}
+      />
 
       <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }}>
         {page === 'admin' && isAdmin && <AdminPanel />}
