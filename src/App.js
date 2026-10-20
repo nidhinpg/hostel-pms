@@ -487,7 +487,7 @@ function AppContent() {
     node.style.width = wrap.offsetWidth + 'px'
     main.appendChild(node)
     const remove = () => { if (node.parentNode) node.parentNode.removeChild(node) }
-    const timer = setTimeout(remove, 320)
+    const timer = setTimeout(remove, 420)
     return () => { clearTimeout(timer); remove() }
   }, [page])
   const [showUserMenu, setShowUserMenu] = useState(false)
