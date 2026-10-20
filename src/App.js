@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
@@ -469,6 +469,27 @@ function AppContent() {
   const prevPageRef = useRef(page)
   const swipeRef = useRef(null)
   useEffect(() => { prevPageRef.current = page }, [page])
+  const mainRef = useRef(null)
+  const wrapRef = useRef(null)
+  const exitRef = useRef(null)
+  // Phone: keep a copy of the page we just left and slide it out while the new page slides in
+  useLayoutEffect(() => {
+    const ex = exitRef.current
+    exitRef.current = null
+    const main = mainRef.current
+    const wrap = wrapRef.current
+    if (!ex || !main || !wrap) return
+    const node = ex.node
+    node.className = 'page-exit ' + (ex.back ? 'exit-back' : 'exit-fwd')
+    node.setAttribute('aria-hidden', 'true')
+    node.style.top = wrap.offsetTop + 'px'
+    node.style.left = wrap.offsetLeft + 'px'
+    node.style.width = wrap.offsetWidth + 'px'
+    main.appendChild(node)
+    const remove = () => { if (node.parentNode) node.parentNode.removeChild(node) }
+    const timer = setTimeout(remove, 320)
+    return () => { clearTimeout(timer); remove() }
+  }, [page])
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
@@ -637,6 +658,9 @@ function AppContent() {
     if (next) goPage(next.id)
   }
   const slideClass = navPages.findIndex(p => p.id === page) < navPages.findIndex(p => p.id === prevPageRef.current) ? 'slide-back' : 'slide-fwd'
+  if (prevPageRef.current !== page && wrapRef.current && window.innerWidth <= 640) {
+    exitRef.current = { node: wrapRef.current.cloneNode(true), back: slideClass === 'slide-back' }
+  }
   const onTouchStartMain = (e) => {
     if (window.innerWidth > 640) { swipeRef.current = null; return }
     let el = e.target
@@ -833,8 +857,8 @@ function AppContent() {
       </header>
       <MobileTabs navPages={navPages} page={page} onNavigate={goPage} onSwipe={swipePage} />
 
-      <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }} onTouchStart={onTouchStartMain} onTouchEnd={onTouchEndMain}>
-        <div key={page} className={'page-anim ' + slideClass}>
+      <main className="main" ref={mainRef} onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }} onTouchStart={onTouchStartMain} onTouchEnd={onTouchEndMain}>
+        <div key={page} ref={wrapRef} className={'page-anim ' + slideClass}>
         {page === 'admin' && isAdmin && <AdminPanel />}
         {page === 'staff' && isOwner && <StaffManager propertyId={activeProperty?.id} onUpgradeClick={() => setShowUpgradeModal(true)} />}
         {!['admin', 'staff'].includes(page) && (
