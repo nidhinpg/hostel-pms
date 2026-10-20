@@ -211,7 +211,8 @@ tr:hover td { background: var(--bg); }
   .table-wrap { overflow-x: visible; }
   table { font-size: 12px; }
   th { font-size: 9px; padding: 6px 3px; letter-spacing: 0; }
-  td { padding: 8px 3px; line-height: 1.3; word-break: break-word; }
+  td { padding: 8px 3px; line-height: 1.3; word-break: normal; overflow-wrap: break-word; }
+  td[data-label="Bed"], td[data-label="Rent"], .badge, td .btn { white-space: nowrap; }
   .badge { font-size: 10px; padding: 1px 6px; }
   td .btn { display: flex; justify-content: center; width: 100%; padding: 4px 6px; font-size: 11px; margin: 2px 0; }
   td :has(> .btn) { flex-direction: column; align-items: stretch; gap: 0; }
