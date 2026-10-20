@@ -32,6 +32,7 @@ function getDailyPendingDays(tenant) {
 
 export default function Tenants({ propertyId, isStaff = false, initialFilter = 'all', canAddTenants = false, canCollectRent = false, canDeleteEntries = false }) {
   const { activeProperty, properties } = useAuth()
+  const [openActionsId, setOpenActionsId] = useState(null)
   // Pro is bundled owner-wide in Pavio (see `ownerIsProElsewhere` in App.js) —
   // if ANY of the owner's properties is pro/owned, all of their properties are
   // effectively Pro. Checking only activeProperty.plan_type here missed that,
@@ -786,7 +787,8 @@ Thank you! — ${hostelName}`
                             )}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <button className="btn" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setOpenActionsId(openActionsId === t.id ? null : t.id)}>{openActionsId === t.id ? 'Close ✕' : 'Actions ▾'}</button>
+                            <div style={{ display: openActionsId === t.id ? 'flex' : 'none', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
                               {t.billing_type === 'daily' ? (
                                 (!isStaff || canCollectRent) && (
                                   <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px' }}
