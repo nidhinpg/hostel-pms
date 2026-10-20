@@ -633,7 +633,7 @@ function AppContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button className="m-menu-btn" aria-label="Open menu" onClick={() => { setShowDrawer(true); setShowPropertyMenu(false); setShowUserMenu(false) }}>☰</button>
               <div className="logo">
-              <span className="logo-icon"><BrandMark url={profile?.logo_url} size={24} /></span>
+              <span className="logo-icon"><BrandMark size={24} /></span>
               <span className="logo-text">Pavio</span>
             </div>
 
@@ -813,9 +813,7 @@ function AppContent() {
         planLabel={badge ? badge.label.replace(/^[^A-Za-z]+/, '') + ' plan' : null}
         profile={profile}
         user={user}
-        isOwner={isOwner}
         onSignOut={() => { setShowDrawer(false); signOut() }}
-        onLogoChanged={refreshProperties}
       />
 
       <main className="main" onClick={() => { setShowPropertyMenu(false); setShowUserMenu(false) }}>
