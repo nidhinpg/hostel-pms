@@ -703,10 +703,10 @@ Thank you! — ${hostelName}`
       {tab === 'active' && (
         <>
           <div className="metrics" style={{ marginBottom: 20 }}>
-            <div className="metric"><div className="metric-label">Total tenants</div><div className="metric-value">{tenants.length}</div><div className="metric-sub">{vacantBeds.length} beds vacant</div></div>
-            <div className="metric"><div className="metric-label">Paid this month</div><div className="metric-value" style={{ color: 'var(--green)' }}>{paidThisMonth}</div><div className="metric-sub">{month}</div></div>
-            <div className="metric"><div className="metric-label">Rent due</div><div className="metric-value" style={{ color: unpaidCount > 0 ? 'var(--red)' : 'var(--green)' }}>{unpaidCount}</div><div className="metric-sub">{upcomingCount} upcoming</div></div>
-            <div className="metric"><div className="metric-label">Outstanding</div><div className="metric-value" style={{ color: totalRentDue > 0 ? 'var(--red)' : 'var(--green)', fontSize: 18 }}>{fmt(totalRentDue)}</div><div className="metric-sub">to collect</div></div>
+            <div className="metric" role="button" tabIndex={0} onClick={() => setFilterStatus('all')} style={{ cursor: 'pointer', outline: filterStatus === 'all' ? '2px solid var(--accent, #D85A30)' : 'none' }}><div className="metric-label">Total tenants</div><div className="metric-value">{tenants.length}</div><div className="metric-sub">{vacantBeds.length} beds vacant</div></div>
+            <div className="metric" role="button" tabIndex={0} onClick={() => setFilterStatus('paid')} style={{ cursor: 'pointer', outline: filterStatus === 'paid' ? '2px solid var(--accent, #D85A30)' : 'none' }}><div className="metric-label">Paid this month</div><div className="metric-value" style={{ color: 'var(--green)' }}>{paidThisMonth}</div><div className="metric-sub">{month}</div></div>
+            <div className="metric" role="button" tabIndex={0} onClick={() => setFilterStatus('due')} style={{ cursor: 'pointer', outline: filterStatus === 'due' ? '2px solid var(--accent, #D85A30)' : 'none' }}><div className="metric-label">Rent due</div><div className="metric-value" style={{ color: unpaidCount > 0 ? 'var(--red)' : 'var(--green)' }}>{unpaidCount}</div><div className="metric-sub">{upcomingCount} upcoming</div></div>
+            <div className="metric" role="button" tabIndex={0} onClick={() => setFilterStatus('due')} style={{ cursor: 'pointer', outline: filterStatus === 'due' ? '2px solid var(--accent, #D85A30)' : 'none' }}><div className="metric-label">Outstanding</div><div className="metric-value" style={{ color: totalRentDue > 0 ? 'var(--red)' : 'var(--green)', fontSize: 18 }}>{fmt(totalRentDue)}</div><div className="metric-sub">to collect</div></div>
           </div>
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
