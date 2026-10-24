@@ -428,6 +428,12 @@ export default function BedMap({ propertyId, isStaff = false, canAddBeds = true 
                     <span style={{ color: 'var(--text-secondary)' }}>{t.billing_type === 'daily' ? 'Billing' : 'Rent'}</span>
                     <span style={{ fontWeight: 600 }}>{t.billing_type === 'daily' ? 'Daily' : `₹${Number(t.rent).toLocaleString('en-IN')}/mo`}</span>
                   </div>
+                  {t.billing_type === 'daily' && (
+                    <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Paid till</span>
+                      <span style={{ fontWeight: 600 }}>{t.daily_paid_through_date ? String(t.daily_paid_through_date).slice(0, 10) : 'Not paid yet'}</span>
+                    </div>
+                  )}
                   <div className="row-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Rent status</span>
                     {t.billing_type === 'daily'
