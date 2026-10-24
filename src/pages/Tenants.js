@@ -749,10 +749,18 @@ Thank you! — ${hostelName}`
                             {t.billing_type === 'daily' ? (
                               (() => {
                                 const pendingDays = getDailyPendingDays(t)
-                                return pendingDays > 0 ? (
+                                const dailyBadge = pendingDays > 0 ? (
                                   <span className="badge badge-red">{pendingDays} day{pendingDays > 1 ? 's' : ''} due</span>
                                 ) : (
                                   <span className="badge badge-green">Paid up to date</span>
+                                )
+                                return (
+                                  <div>
+                                    {dailyBadge}
+                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                                      {t.daily_paid_through_date ? 'Paid till ' + String(t.daily_paid_through_date).slice(0, 10) : 'Not paid yet'}
+                                    </div>
+                                  </div>
                                 )
                               })()
                             ) : status === 'paid' ? (
